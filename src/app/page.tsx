@@ -11,7 +11,6 @@ import { useUser, useFirestore, FirebaseClientProvider } from "@/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { LoginForm } from "@/components/auth/LoginForm";
 
-// Standard imports to prevent chunk loading errors and application hangs
 import { OverviewTab } from "@/components/dashboard/OverviewTab";
 import { UserManagement } from "@/components/dashboard/UserManagement";
 import { AttendanceTab } from "@/components/dashboard/AttendanceTab";
@@ -20,7 +19,7 @@ import { TaskManagement } from "@/components/dashboard/TaskManagement";
 
 function DashboardContent() {
   const { user, isUserLoading } = useUser();
-  const { profile, setProfile } = useAuthStore();
+  const { profile, setProfile, logout: clearProfile } = useAuthStore();
   const db = useFirestore();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isInitializing, setIsInitializing] = useState(true);
@@ -30,12 +29,17 @@ function DashboardContent() {
     if (isUserLoading) return;
 
     if (!user) {
+      clearProfile();
+      syncRef.current = null;
       setIsInitializing(false);
       return;
     }
 
+    // Only sync if the user has changed
     if (user && syncRef.current !== user.uid) {
       syncRef.current = user.uid;
+      setIsInitializing(true);
+      
       const unsub = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
@@ -50,13 +54,13 @@ function DashboardContent() {
         unsub();
       };
     }
-  }, [user, isUserLoading, db, setProfile]);
+  }, [user, isUserLoading, db, setProfile, clearProfile]);
 
   const handleTabChange = useCallback((id: string) => {
     setActiveTab(id);
   }, []);
 
-  if (isUserLoading || (user && isInitializing)) {
+  if (isUserLoading || (user && (isInitializing || !profile || profile.id !== user.uid))) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />

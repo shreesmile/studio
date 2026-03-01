@@ -52,7 +52,8 @@ import {
   useMemoFirebase,
   setDocumentNonBlocking,
   updateDocumentNonBlocking,
-  deleteDocumentNonBlocking
+  deleteDocumentNonBlocking,
+  useUser
 } from "@/firebase";
 import { collection, doc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
@@ -81,6 +82,7 @@ export function UserManagement() {
   const db = useFirestore();
   const { toast } = useToast();
   const { profile: currentUser } = useAuthStore();
+  const { user: authUser } = useUser();
   const [search, setSearch] = useState("");
   const [showPasswords, setShowPasswords] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,9 +96,11 @@ export function UserManagement() {
   [currentRolePower]);
 
   const usersRef = useMemoFirebase(() => {
-    if (!currentUser || currentRolePower < 2) return null;
+    // CRITICAL: Ensure sync before query
+    if (!currentUser || !currentUser.role || !authUser || currentUser.id !== authUser.uid) return null;
+    if (currentRolePower < 2) return null;
     return collection(db, "users");
-  }, [db, currentUser, currentRolePower]);
+  }, [db, currentUser, authUser, currentRolePower]);
 
   const { data: users, isLoading } = useCollection<UserData>(usersRef);
 
@@ -388,7 +392,7 @@ export function UserManagement() {
             </div>
             <DialogFooter>
               {modalMode !== 'view' && (
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                <Button type="submit" className="w-full h-11 bg-primary font-bold uppercase tracking-widest text-xs" disabled={isSubmitting}>
                   {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {modalMode === 'add' ? 'Deploy Identity' : 'Commit Changes'}
                 </Button>

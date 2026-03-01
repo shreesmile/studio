@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Calendar, Filter, User, Loader2, Settings2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore, UserRole } from "@/lib/auth-store";
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
+import { useFirestore, useCollection, useMemoFirebase, useUser, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { collection, query, where, serverTimestamp, doc } from "firebase/firestore";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -27,13 +27,16 @@ const ROLE_POWER: Record<UserRole, number> = {
 
 export function TaskManagement() {
   const { profile: currentUser } = useAuthStore();
+  const { user: authUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   const [filterStatus, setFilterStatus] = useState("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const tasksRef = useMemoFirebase(() => {
-    if (!currentUser || !currentUser.role) return null;
+    // CRITICAL: Prevent unauthorized list if profile is not synced with current auth UID
+    if (!currentUser || !currentUser.role || !authUser || currentUser.id !== authUser.uid) return null;
+    
     let q = query(collection(db, "tasks"));
 
     switch (currentUser.role) {
@@ -50,15 +53,16 @@ export function TaskManagement() {
         break;
     }
     return q;
-  }, [db, currentUser]);
+  }, [db, currentUser, authUser]);
   
   const { data: allTasks, isLoading } = useCollection(tasksRef);
   const tasks = allTasks?.filter(t => filterStatus === 'all' || t.status === filterStatus) || [];
 
   const usersRef = useMemoFirebase(() => {
-    if (!currentUser || ROLE_POWER[currentUser.role] < 1) return null;
+    if (!currentUser || !currentUser.role || !authUser || currentUser.id !== authUser.uid) return null;
+    if (ROLE_POWER[currentUser.role] < 1) return null;
     return collection(db, "users");
-  }, [db, currentUser]);
+  }, [db, currentUser, authUser]);
   
   const { data: allUsers } = useCollection(usersRef);
 
@@ -78,7 +82,7 @@ export function TaskManagement() {
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
     const target = allUsers?.find(u => u.id === newTask.assignedToId);
-    if (!target || !currentUser) return;
+    if (!target || !currentUser || !authUser || currentUser.id !== authUser.uid) return;
 
     const taskData = {
       title: newTask.title,
@@ -146,8 +150,8 @@ export function TaskManagement() {
             <Card key={task.id} className="hover:shadow-md transition-shadow bg-white border-none">
               <CardHeader className="flex flex-row items-start justify-between pb-2">
                 <div className="space-y-1">
-                  <Badge variant="outline" className={getStatusColor(task.status)}>
-                    {task.status.toUpperCase()}
+                  <Badge variant="outline" className={`text-[10px] uppercase font-black ${getStatusColor(task.status)}`}>
+                    {task.status}
                   </Badge>
                   <CardTitle className="text-lg font-bold">{task.title}</CardTitle>
                 </div>
@@ -156,9 +160,9 @@ export function TaskManagement() {
                     <Button variant="ghost" size="icon" className="h-8 w-8"><Settings2 className="h-4 w-4" /></Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'in-progress' })}>In Progress</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'completed' })}>Completed</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'blocked' })}>Blocked</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'in-progress', updatedAt: serverTimestamp() })}>In Progress</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'completed', updatedAt: serverTimestamp() })}>Completed</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'blocked', updatedAt: serverTimestamp() })}>Blocked</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </CardHeader>
@@ -208,7 +212,7 @@ export function TaskManagement() {
               <Label>Target Deadline</Label>
               <Input type="date" required value={newTask.deadline} onChange={e => setNewTask({...newTask, deadline: e.target.value})} />
             </div>
-            <Button type="submit" className="w-full h-11 bg-primary">INITIALIZE WORKFLOW</Button>
+            <Button type="submit" className="w-full h-11 bg-primary font-bold uppercase tracking-widest text-xs">INITIALIZE WORKFLOW</Button>
           </form>
         </DialogContent>
       </Dialog>

@@ -6,18 +6,21 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { CalendarCheck, TrendingUp, Sparkles, BrainCircuit, Loader2 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase";
 import { collection, query, where, limit } from "firebase/firestore";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 
 export function OverviewTab() {
   const { profile: user } = useAuthStore();
+  const { user: authUser } = useUser();
   const db = useFirestore();
   const today = format(new Date(), "yyyy-MM-dd");
 
   const attendanceQuery = useMemoFirebase(() => {
-    if (!user || !user.role || !user.id) return null;
+    // CRITICAL: Ensure we don't query until profile is synced with Auth UID
+    if (!user || !user.role || !user.id || !authUser || user.id !== authUser.uid) return null;
+    
     let q = query(collection(db, "attendance"), where("date", "==", today));
     
     if (user.role === 'Employee') {
@@ -26,18 +29,19 @@ export function OverviewTab() {
       q = query(q, where("department", "==", user.department));
     }
     return q;
-  }, [db, user, today]);
+  }, [db, user, authUser, today]);
 
   const { data: todayAttendance, isLoading: loadingAtt } = useCollection(attendanceQuery);
 
   const usersQuery = useMemoFirebase(() => {
-    if (!user || !['Super Admin', 'Admin', 'Manager', 'Team Lead'].includes(user.role)) return null;
+    if (!user || !user.role || !authUser || user.id !== authUser.uid) return null;
+    if (!['Super Admin', 'Admin', 'Manager', 'Team Lead'].includes(user.role)) return null;
     return query(collection(db, "users"), limit(100));
-  }, [db, user]);
+  }, [db, user, authUser]);
 
   const { data: users, isLoading: loadingUsers } = useCollection(usersQuery);
 
-  if (!user) {
+  if (!user || !authUser || user.id !== authUser.uid) {
     return (
       <div className="flex justify-center py-20">
         <Loader2 className="animate-spin text-primary" />

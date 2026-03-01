@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth-store";
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
+import { useFirestore, useCollection, useMemoFirebase, useUser, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { collection, query, where, doc, limit, serverTimestamp, orderBy } from "firebase/firestore";
 import { Clock, LogIn, LogOut, CheckCircle, Loader2, Briefcase, FileText } from "lucide-react";
 import { format } from "date-fns";
@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export function AttendanceTab() {
   const { profile: user } = useAuthStore();
+  const { user: authUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   const today = format(new Date(), "yyyy-MM-dd");
@@ -25,7 +26,7 @@ export function AttendanceTab() {
   const [notes, setNotes] = useState("");
 
   const attendanceQuery = useMemoFirebase(() => {
-    if (!user || !user.role || !user.id) return null;
+    if (!user || !user.role || !user.id || !authUser || user.id !== authUser.uid) return null;
     let q = query(collection(db, "attendance"));
     
     if (user.role === 'Employee') {
@@ -35,7 +36,7 @@ export function AttendanceTab() {
     }
     
     return query(q, orderBy("clockIn", "desc"), limit(50));
-  }, [db, user]);
+  }, [db, user, authUser]);
 
   const { data: records, isLoading } = useCollection(attendanceQuery);
 
@@ -44,7 +45,7 @@ export function AttendanceTab() {
   [records, today, user?.id]);
 
   const handleClockIn = () => {
-    if (!user) return;
+    if (!user || !authUser || user.id !== authUser.uid) return;
     if (!project.trim()) {
       toast({
         variant: "destructive",
@@ -77,7 +78,7 @@ export function AttendanceTab() {
   };
 
   const handleClockOut = () => {
-    if (!todayRecord || !user) return;
+    if (!todayRecord || !user || !authUser || user.id !== authUser.uid) return;
     const now = new Date();
     const clockIn = new Date(todayRecord.clockIn);
     const diffHours = (now.getTime() - clockIn.getTime()) / (1000 * 60 * 60);
@@ -202,7 +203,7 @@ export function AttendanceTab() {
                         </td>
                         <td className="px-4 py-3">{rec.totalHours ? `${rec.totalHours}h` : "Operational"}</td>
                         <td className="px-4 py-3 text-right">
-                          <Badge variant={rec.status === 'Late' ? 'destructive' : 'secondary'} className="text-[8px] uppercase font-black">
+                          <Badge variant={rec.status === 'Late' ? 'destructive' : 'secondary'} className="text-[8px] font-black tracking-widest uppercase">
                             {rec.status}
                           </Badge>
                         </td>

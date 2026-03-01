@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/lib/auth-store";
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
+import { useFirestore, useCollection, useMemoFirebase, useUser, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { collection, query, where, doc, orderBy, serverTimestamp } from "firebase/firestore";
 import { CalendarDays, Plus, CheckCircle, XCircle, Clock, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -17,13 +17,16 @@ import { useToast } from "@/hooks/use-toast";
 
 export function LeaveManagement() {
   const { profile: user } = useAuthStore();
+  const { user: authUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [newRequest, setNewRequest] = useState({ startDate: '', endDate: '', reason: '' });
 
   const leaveQuery = useMemoFirebase(() => {
-    if (!user || !user.role) return null;
+    // CRITICAL: Ensure UID sync before list operation
+    if (!user || !user.role || !authUser || user.id !== authUser.uid) return null;
+    
     let q = query(collection(db, "leave_requests"));
     
     if (user.role === 'Employee') {
@@ -33,13 +36,13 @@ export function LeaveManagement() {
     }
     
     return query(q, orderBy("startDate", "desc"));
-  }, [db, user]);
+  }, [db, user, authUser]);
 
   const { data: requests, isLoading } = useCollection(leaveQuery);
 
   const handleRequestSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !authUser || user.id !== authUser.uid) return;
 
     const requestData = {
       userId: user.id,
