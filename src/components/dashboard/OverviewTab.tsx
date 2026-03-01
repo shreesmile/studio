@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from "react";
@@ -33,7 +32,7 @@ export function OverviewTab() {
 
   // Guarded query for users - only for Team Lead and above
   const usersQuery = useMemoFirebase(() => {
-    if (!user || user.role === 'Employee') return null;
+    if (!user || !['Super Admin', 'Admin', 'Manager', 'Team Lead'].includes(user.role)) return null;
     return query(collection(db, "users"), limit(100));
   }, [db, user]);
 

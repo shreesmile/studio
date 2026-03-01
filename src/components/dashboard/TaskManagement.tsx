@@ -60,22 +60,19 @@ export function TaskManagement() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const tasksRef = useMemoFirebase(() => {
-    if (!currentUser) return null; // FIX: Prevents unauthorized "list all" requests
+    if (!currentUser) return null;
     let q = query(collection(db, "tasks"));
 
     switch (currentUser.role) {
       case 'Super Admin': break;
       case 'Admin':
-        // Admins see all tasks except those created by Super Admins
         q = query(q, where("assignedByRole", "!=", "Super Admin"));
         break;
       case 'Manager':
       case 'Team Lead':
-        // Team-based visibility
         q = query(q, where("assignedToDepartment", "==", currentUser.department));
         break;
       case 'Employee':
-        // Individual visibility
         q = query(q, where("assignedToId", "==", currentUser.id));
         break;
     }
@@ -85,7 +82,13 @@ export function TaskManagement() {
   const { data: allTasks, isLoading } = useCollection(tasksRef);
   const tasks = allTasks?.filter(t => filterStatus === 'all' || t.status === filterStatus) || [];
 
-  const usersRef = useMemoFirebase(() => collection(db, "users"), [db]);
+  // FIX: Only list users if the current user has the power to assign tasks
+  // Employees cannot list users per security rules
+  const usersRef = useMemoFirebase(() => {
+    if (!currentUser || currentUser.role === 'Employee') return null;
+    return collection(db, "users");
+  }, [db, currentUser]);
+  
   const { data: allUsers } = useCollection(usersRef);
 
   const subordinates = allUsers?.filter(u => {
@@ -93,11 +96,10 @@ export function TaskManagement() {
     const myPower = ROLE_POWER[currentUser.role];
     const targetPower = ROLE_POWER[u.role];
 
-    // Strictly follow the Assignment Matrix
     if (currentUser.role === 'Super Admin') return true;
-    if (currentUser.role === 'Admin') return targetPower <= 2; // Manager, Team Lead, Employee
-    if (currentUser.role === 'Manager') return targetPower <= 1 && u.department === currentUser.department; // Team Lead, Employee
-    if (currentUser.role === 'Team Lead') return targetPower === 0 && u.department === currentUser.department; // Employee
+    if (currentUser.role === 'Admin') return targetPower <= 2; 
+    if (currentUser.role === 'Manager') return targetPower <= 1 && u.department === currentUser.department; 
+    if (currentUser.role === 'Team Lead') return targetPower === 0 && u.department === currentUser.department; 
     return false;
   }) || [];
 
