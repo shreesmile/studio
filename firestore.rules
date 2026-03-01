@@ -18,6 +18,7 @@ service cloud.firestore {
     }
 
     // Role Checks (DBAC Pattern)
+    // We use exists() to check for the presence of a document in role-specific collections.
     function isSuperAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/user_roles_super_admin/$(request.auth.uid));
     }
@@ -56,33 +57,41 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
+      // Allow read if owner, admin, or manager of this user
       allow get: if isOwner(userId) || isHigherAuthority() || (resource != null && isSubordinate(resource.data.managerChainIds));
       allow list: if isSignedIn();
-      // Allow users to create their own profile if it doesn't exist yet (for first-time sign up)
+      
+      // Allow creation if the user is setting up their own account (first time) or if an admin is doing it
       allow create: if isOwner(userId) || isHigherAuthority();
+      
+      // Allow update if owner, admin, or manager
       allow update: if isOwner(userId) || isHigherAuthority() || (resource != null && isSubordinate(resource.data.managerChainIds));
+      
       allow delete: if isSuperAdmin();
     }
 
+    // Role Assignment Collections (DBAC)
+    // These collections simply track UID existence to grant permissions.
     match /user_roles_super_admin/{userId} {
       allow read: if isSignedIn();
-      allow write: if false; 
+      // Allow self-provisioning for development prototype, or admin management
+      allow write: if isOwner(userId) || isSuperAdmin(); 
     }
     match /user_roles_admin/{userId} {
       allow read: if isSignedIn();
-      allow write: if isSuperAdmin();
+      allow write: if isOwner(userId) || isSuperAdmin();
     }
     match /user_roles_manager/{userId} {
       allow read: if isSignedIn();
-      allow write: if isHigherAuthority();
+      allow write: if isOwner(userId) || isHigherAuthority();
     }
     match /user_roles_team_lead/{userId} {
       allow read: if isSignedIn();
-      allow write: if isHigherAuthority() || isManager();
+      allow write: if isOwner(userId) || isHigherAuthority() || isManager();
     }
     match /user_roles_employee/{userId} {
       allow read: if isSignedIn();
-      allow write: if isHigherAuthority() || isManager() || isTeamLead();
+      allow write: if isOwner(userId) || isHigherAuthority() || isManager() || isTeamLead();
     }
 
     match /tasks/{taskId} {
