@@ -2,6 +2,7 @@
 "use client";
 
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export type UserRole = 'Super Admin' | 'Admin' | 'Manager' | 'Team Lead' | 'Employee';
 
@@ -15,41 +16,43 @@ export interface User {
 
 interface AuthState {
   user: User | null;
+  isLoaded: boolean;
   login: (role: UserRole) => void;
   logout: () => void;
+  setLoaded: (loaded: boolean) => void;
 }
 
-// Simple mock store implementation
-import { useState, useEffect } from 'react';
-
-export const useAuth = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('roleflow_user');
-    if (saved) {
-      setUser(JSON.parse(saved));
+/**
+ * Global authentication store using Zustand.
+ * Persists the user session to localStorage and handles hydration state
+ * to prevent flickering and hydration mismatches in Next.js.
+ */
+export const useAuth = create<AuthState>()(
+  persist(
+    (set) => ({
+      user: null,
+      isLoaded: false,
+      login: (role: UserRole) => {
+        const mockUser: User = {
+          id: `u-${role.toLowerCase().replace(' ', '-')}`,
+          name: `Mock ${role}`,
+          email: `${role.toLowerCase().replace(' ', '.')}@roleflow.io`,
+          role,
+          department: 'Engineering'
+        };
+        set({ user: mockUser });
+      },
+      logout: () => {
+        set({ user: null });
+      },
+      setLoaded: (loaded: boolean) => set({ isLoaded: loaded }),
+    }),
+    {
+      name: 'roleflow_auth_storage',
+      onRehydrateStorage: () => (state) => {
+        // Once the store is hydrated from localStorage, we signal that the app is ready to render.
+        state?.setLoaded(true);
+      },
     }
-    setIsLoaded(true);
-  }, []);
-
-  const login = (role: UserRole) => {
-    const mockUser: User = {
-      id: `u-${role.toLowerCase().replace(' ', '-')}`,
-      name: `Mock ${role}`,
-      email: `${role.toLowerCase().replace(' ', '.')}@roleflow.io`,
-      role,
-      department: 'Engineering'
-    };
-    setUser(mockUser);
-    localStorage.setItem('roleflow_user', JSON.stringify(mockUser));
-  };
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('roleflow_user');
-  };
-
-  return { user, login, logout, isLoaded };
-};
+  )
+);
