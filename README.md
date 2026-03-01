@@ -10,13 +10,16 @@ RoleFlow is a professional Role-Based Access Control (RBAC) management platform 
 - **Secure Task Management**: Hierarchical task assignment and tracking system.
 - **User Directory**: Full CRUD capabilities for administrators with secure password visibility controls.
 
-## Tech Stack
+## Tech Stack & Languages
 
-- **Framework**: Next.js 15 (App Router)
-- **Database/Auth**: Firebase (Firestore & Authentication)
-- **Styling**: Tailwind CSS & ShadCN UI
-- **AI**: Genkit with Google AI (Gemini 2.5 Flash)
-- **State Management**: Zustand (with Persistence)
+- **Primary Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Frontend Framework**: [Next.js 15](https://nextjs.org/) (App Router)
+- **UI Library**: [React 19](https://react.dev/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) & [ShadCN UI](https://ui.shadcn.com/)
+- **Database & Auth**: [Firebase](https://firebase.google.com/) (Firestore & Authentication)
+- **AI Engine**: [Genkit](https://firebase.google.com/docs/genkit) with Google AI (Gemini 2.5 Flash)
+- **State Management**: [Zustand](https://github.com/pmndrs/zustand)
+- **Configuration**: JSON, YAML, and Firestore Rules DSL
 
 ## Getting Started
 
@@ -41,7 +44,7 @@ RoleFlow is a professional Role-Based Access Control (RBAC) management platform 
 
 ## Security Rules
 
-The application uses existence-based role checks (DBAC) for maximum security and efficiency. Ensure you deploy the security rules found in `firestore.rules` to your Firebase project.
+The application uses existence-based role checks (DBAC) and hierarchical data validation for maximum security. Ensure you deploy the security rules found in `firestore.rules` to your Firebase project.
 
 ---
 Built with ❤️ in Firebase Studio.
