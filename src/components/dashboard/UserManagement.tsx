@@ -166,7 +166,7 @@ export function UserManagement() {
           email: formData.email || '',
           role: formData.role || 'Employee',
           department: formData.department || 'General',
-          password: formData.password || '',
+          password: formData.password || 'password123',
           createdAt: serverTimestamp(), 
           updatedAt: serverTimestamp() 
         };

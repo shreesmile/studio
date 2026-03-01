@@ -25,6 +25,7 @@ import { useAuthStore, UserRole } from "@/lib/auth-store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/firebase";
 import { signOut } from "firebase/auth";
+import { SheetTitle } from "@/components/ui/sheet";
 
 interface NavItem {
   title: string;
