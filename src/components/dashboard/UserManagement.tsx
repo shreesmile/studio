@@ -48,8 +48,15 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, doc, deleteDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { 
+  useFirestore, 
+  useCollection, 
+  useMemoFirebase,
+  setDocumentNonBlocking,
+  updateDocumentNonBlocking,
+  deleteDocumentNonBlocking
+} from "@/firebase";
+import { collection, doc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
 type UserRole = 'Super Admin' | 'Admin' | 'Manager' | 'Team Lead' | 'Employee';
@@ -68,7 +75,7 @@ export function UserManagement() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   
-  // Firestore Data
+  // Firestore Data - Real-time subscription
   const usersRef = useMemoFirebase(() => collection(db, "users"), [db]);
   const { data: users, isLoading } = useCollection<UserData>(usersRef);
 
@@ -78,7 +85,6 @@ export function UserManagement() {
   const [selectedUser, setSelectedUser] = useState<Partial<UserData> | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<Partial<UserData>>({
@@ -90,11 +96,13 @@ export function UserManagement() {
 
   const filteredUsers = useMemo(() => {
     if (!users) return [];
-    return users.filter(u => 
-      u.name.toLowerCase().includes(search.toLowerCase()) || 
-      u.role.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase())
-    );
+    return users.filter(u => {
+      const name = u.name?.toLowerCase() || "";
+      const role = u.role?.toLowerCase() || "";
+      const email = u.email?.toLowerCase() || "";
+      const term = search.toLowerCase();
+      return name.includes(term) || role.includes(term) || email.includes(term);
+    });
   }, [users, search]);
 
   const handleOpenModal = (mode: 'add' | 'edit' | 'view', user?: UserData) => {
@@ -109,24 +117,31 @@ export function UserManagement() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (modalMode === 'view') return;
     
-    setIsSubmitting(true);
     try {
       if (modalMode === 'add') {
-        // In a real app, this would ideally use a Cloud Function to create the Auth user too
         const newId = doc(collection(db, "users")).id;
-        await setDoc(doc(db, "users", newId), {
+        const newDocRef = doc(db, "users", newId);
+        
+        setDocumentNonBlocking(newDocRef, {
           ...formData,
           id: newId,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
-        });
+        }, { merge: true });
+
+        // Also update role existence for RBAC rules
+        const roleKey = formData.role?.toLowerCase().replace(/\s+/g, '_') || 'employee';
+        const roleRef = doc(db, `user_roles_${roleKey}`, newId);
+        setDocumentNonBlocking(roleRef, { active: true }, { merge: true });
+
         toast({ title: "User Added", description: `${formData.name} has been added to the system.` });
       } else if (modalMode === 'edit' && selectedUser?.id) {
-        await updateDoc(doc(db, "users", selectedUser.id), {
+        const docRef = doc(db, "users", selectedUser.id);
+        updateDocumentNonBlocking(docRef, {
           ...formData,
           updatedAt: serverTimestamp()
         });
@@ -135,15 +150,14 @@ export function UserManagement() {
       setIsModalOpen(false);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
-  const confirmDelete = async () => {
+  const confirmDelete = () => {
     if (!userToDelete) return;
     try {
-      await deleteDoc(doc(db, "users", userToDelete));
+      const docRef = doc(db, "users", userToDelete);
+      deleteDocumentNonBlocking(docRef);
       toast({ title: "User Deleted", description: "The user has been removed from the system." });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -319,8 +333,7 @@ export function UserManagement() {
               ) : (
                 <>
                   <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Button type="submit">
                     {modalMode === 'add' ? 'Create User' : 'Save Changes'}
                   </Button>
                 </>
@@ -351,4 +364,3 @@ export function UserManagement() {
     </div>
   );
 }
-

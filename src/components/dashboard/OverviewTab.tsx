@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { 
   Card, 
   CardContent, 
@@ -16,44 +16,47 @@ import {
   Users, 
   Sparkles, 
   TrendingUp,
-  BrainCircuit
+  BrainCircuit,
+  Loader2
 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { generatePerformanceInsight, GeneratePerformanceInsightOutput } from "@/ai/flows/ai-performance-insight";
-
-// Mock data for the demo
-const mockTasks = [
-  { id: '1', title: 'Migrate DB', status: 'completed', assignedToUserId: 'u-employee', createdAt: '2024-01-01' },
-  { id: '2', title: 'Fix Auth UI', status: 'in-progress', assignedToUserId: 'u-employee', createdAt: '2024-01-02' },
-  { id: '3', title: 'Write Tests', status: 'pending', assignedToUserId: 'u-team-lead', createdAt: '2024-01-03' },
-  { id: '4', title: 'Release v1.2', status: 'blocked', assignedToUserId: 'u-employee', createdAt: '2024-01-04', deadline: '2024-01-05' },
-];
-
-const mockUsers = [
-  { id: 'u-super-admin', name: 'Super Admin', role: 'Super Admin' as const },
-  { id: 'u-manager', name: 'Product Manager', role: 'Manager' as const },
-  { id: 'u-employee', name: 'John Dev', role: 'Employee' as const },
-];
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { collection, query, orderBy, limit } from "firebase/firestore";
 
 export function OverviewTab() {
   const { profile: user } = useAuthStore();
+  const db = useFirestore();
   const [aiInsight, setAiInsight] = useState<GeneratePerformanceInsightOutput | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
 
+  // REAL DATA: Fetch Users
+  const usersRef = useMemoFirebase(() => collection(db, "users"), [db]);
+  const { data: usersData, isLoading: loadingUsers } = useCollection(usersRef);
+
+  // REAL DATA: Fetch Recent Activity (Tasks)
+  const recentTasksQuery = useMemoFirebase(() => 
+    query(collection(db, "tasks"), orderBy("createdAt", "desc"), limit(5)), 
+  [db]);
+  const { data: recentTasks, isLoading: loadingTasks } = useCollection(recentTasksQuery);
+
   const getInsights = async () => {
+    if (!usersData || !recentTasks) return;
     setLoadingAi(true);
     try {
       const res = await generatePerformanceInsight({
-        tasks: mockTasks.map(t => ({
-          ...t,
-          status: t.status as any,
-          createdAt: t.createdAt,
-          assignedToUserId: t.assignedToUserId
+        tasks: recentTasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          status: t.status || 'pending',
+          createdAt: t.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+          assignedToUserId: t.assignedToId || 'unknown'
         })),
-        users: mockUsers.map(u => ({
-          ...u,
-          role: u.role as any
+        users: usersData.map(u => ({
+          id: u.id,
+          name: u.name,
+          role: u.role
         })),
         context: "Focus on task completion rates and potential delays."
       });
@@ -77,18 +80,22 @@ export function OverviewTab() {
             <Clock className="h-4 w-4 text-[#457399]" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-[#2d3748]">24</div>
-            <p className="text-xs text-muted-foreground mt-1">+2 from yesterday</p>
+            <div className="text-3xl font-bold text-[#2d3748]">
+              {loadingTasks ? <Loader2 className="h-6 w-6 animate-spin inline" /> : (recentTasks?.length || 0)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Managed tasks</p>
           </CardContent>
         </Card>
         <Card className="shadow-sm border-none bg-white">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Completed</CardTitle>
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Completion Status</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-[#457399]" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-[#2d3748]">12</div>
-            <p className="text-xs text-muted-foreground mt-1">50% completion rate</p>
+            <div className="text-3xl font-bold text-[#2d3748]">
+              {recentTasks?.filter(t => t.status === 'completed').length || 0}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Tasks finalized</p>
           </CardContent>
         </Card>
       </div>
@@ -96,12 +103,12 @@ export function OverviewTab() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="shadow-sm border-none bg-white">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Overdue</CardTitle>
-            <AlertCircle className="h-4 w-4 text-destructive" />
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">System Status</CardTitle>
+            <AlertCircle className="h-4 w-4 text-accent" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-[#2d3748]">3</div>
-            <p className="text-xs text-muted-foreground mt-1">Requires attention</p>
+            <div className="text-3xl font-bold text-[#2d3748]">Active</div>
+            <p className="text-xs text-muted-foreground mt-1">Real-time sync enabled</p>
           </CardContent>
         </Card>
         {(isAdmin || isManager) && (
@@ -111,8 +118,10 @@ export function OverviewTab() {
               <Users className="h-4 w-4 text-accent" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-[#2d3748]">18</div>
-              <p className="text-xs text-muted-foreground mt-1">Across 4 teams</p>
+              <div className="text-3xl font-bold text-[#2d3748]">
+                {loadingUsers ? <Loader2 className="h-6 w-6 animate-spin inline" /> : (usersData?.length || 0)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Across all departments</p>
             </CardContent>
           </Card>
         )}
@@ -133,7 +142,7 @@ export function OverviewTab() {
               </div>
               <Button 
                 onClick={getInsights} 
-                disabled={loadingAi}
+                disabled={loadingAi || loadingUsers || loadingTasks}
                 variant="outline"
                 className="bg-white hover:bg-accent hover:text-white h-9 text-xs"
               >
@@ -171,7 +180,7 @@ export function OverviewTab() {
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center space-y-2 opacity-60">
                 <BrainCircuit className="h-8 w-8 text-muted-foreground" />
-                <p className="text-xs">Click to generate AI insights based on team velocity.</p>
+                <p className="text-xs">Click to generate AI insights based on current team data.</p>
               </div>
             )}
           </CardContent>
@@ -181,41 +190,49 @@ export function OverviewTab() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="shadow-sm border-none bg-white">
           <CardHeader>
-            <CardTitle className="text-lg font-bold">Recent Activity</CardTitle>
+            <CardTitle className="text-lg font-bold">Recent System Activity</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground border border-white shadow-sm">JD</div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-[#2d3748]">John Doe completed "UI Design System"</p>
-                    <p className="text-[10px] text-muted-foreground">2 hours ago</p>
+              {loadingTasks ? (
+                <Loader2 className="h-6 w-6 animate-spin mx-auto opacity-20" />
+              ) : recentTasks && recentTasks.length > 0 ? (
+                recentTasks.map((task) => (
+                  <div key={task.id} className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground border border-white shadow-sm">
+                      {task.title.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-[#2d3748]">{task.title}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase">{task.status}</p>
+                    </div>
+                    <div className="text-[10px] font-bold text-[#457399]">REAL-TIME</div>
                   </div>
-                  <div className="text-[10px] font-bold text-[#457399] uppercase">Task</div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-4">No recent task activity detected.</p>
+              )}
             </div>
           </CardContent>
         </Card>
         
         <Card className="shadow-sm border-none bg-white">
           <CardHeader>
-            <CardTitle className="text-lg font-bold">Role Permissions</CardTitle>
+            <CardTitle className="text-lg font-bold">Role Capabilities</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Current Role:</span>
+                <span className="text-sm text-muted-foreground">Authenticated as:</span>
                 <span className="text-sm font-bold text-accent">{user?.role}</span>
               </div>
               <div className="space-y-3">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Available Actions</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Authorized Contexts</div>
                 <div className="grid grid-cols-2 gap-3">
-                  {["Manage Users", "Assign Tasks", "View Reports", "Edit Profile"].map((action) => (
-                    <Button key={action} variant="outline" className="h-9 text-[10px] bg-[#f8fafc] hover:bg-accent/5 hover:text-accent border-muted shadow-none">
+                  {["Auth Audit", "Task Tracking", "Insight Engine", "Directory"].map((action) => (
+                    <div key={action} className="h-9 flex items-center justify-center text-[10px] bg-[#f8fafc] border border-muted rounded-md text-muted-foreground">
                       {action}
-                    </Button>
+                    </div>
                   ))}
                 </div>
               </div>
