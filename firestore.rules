@@ -31,6 +31,7 @@ service cloud.firestore {
 
     // --- RULES ---
 
+    // Primary User Directory
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn() && getMyWeight() >= 2;
@@ -48,6 +49,14 @@ service cloud.firestore {
       allow delete: if isSignedIn() && isSuperior(resource.data.role);
     }
 
+    // Role Existence Markers (Required for hierarchical checks)
+    match /user_roles_Super_Admin/{uid} { allow read, write: if isSignedIn() && getMyWeight() == 5; }
+    match /user_roles_Admin/{uid} { allow read, write: if isSignedIn() && getMyWeight() >= 4; }
+    match /user_roles_Manager/{uid} { allow read, write: if isSignedIn() && getMyWeight() >= 3; }
+    match /user_roles_Team_Lead/{uid} { allow read, write: if isSignedIn() && getMyWeight() >= 2; }
+    match /user_roles_Employee/{uid} { allow read, write: if isSignedIn() && getMyWeight() >= 2; }
+
+    // Attendance Records
     match /attendance/{attendanceId} {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
@@ -63,6 +72,7 @@ service cloud.firestore {
       );
     }
 
+    // Leave Requests
     match /leave_requests/{requestId} {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
@@ -80,6 +90,26 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (
         resource.data.userId == request.auth.uid && resource.data.status == 'Pending'
       );
+    }
+
+    // Tasks Management
+    match /tasks/{taskId} {
+      allow read: if isSignedIn() && (
+        resource.data.assignedToId == request.auth.uid ||
+        resource.data.assignedById == request.auth.uid ||
+        getMyWeight() >= 4 ||
+        (getMyWeight() >= 2 && resource.data.assignedToDepartment == getUserData(request.auth.uid).department)
+      );
+      
+      allow create: if isSignedIn() && isSuperior(request.resource.data.assignedToRole);
+      
+      allow update: if isSignedIn() && (
+        resource.data.assignedToId == request.auth.uid ||
+        resource.data.assignedById == request.auth.uid ||
+        isSuperior(resource.data.assignedToRole)
+      );
+      
+      allow delete: if isSignedIn() && isSuperior(resource.data.assignedToRole);
     }
   }
 }
