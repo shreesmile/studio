@@ -110,6 +110,8 @@
         "name",
         "email",
         "role",
+        "password",
+        "department",
         "createdAt",
         "updatedAt"
       ]

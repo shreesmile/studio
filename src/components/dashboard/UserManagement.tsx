@@ -184,6 +184,15 @@ export function UserManagement() {
           password: formData.password || '',
           updatedAt: serverTimestamp()
         };
+        
+        // Sync role change in DBAC collections
+        if (selectedUser.role && selectedUser.role !== updateData.role) {
+          const oldRoleKey = selectedUser.role.toLowerCase().replace(/\s+/g, '_');
+          const newRoleKey = updateData.role.toLowerCase().replace(/\s+/g, '_');
+          deleteDocumentNonBlocking(doc(db, `user_roles_${oldRoleKey}`, selectedUser.id));
+          setDocumentNonBlocking(doc(db, `user_roles_${newRoleKey}`, selectedUser.id), { active: true }, { merge: true });
+        }
+
         updateDocumentNonBlocking(doc(db, "users", selectedUser.id), updateData);
         toast({ title: "Profile Updated", description: "Changes saved successfully." });
       }
@@ -195,6 +204,14 @@ export function UserManagement() {
 
   const confirmDelete = () => {
     if (!userToDelete) return;
+    
+    // Also clean up role collection
+    const targetUser = users?.find(u => u.id === userToDelete);
+    if (targetUser?.role) {
+      const roleKey = targetUser.role.toLowerCase().replace(/\s+/g, '_');
+      deleteDocumentNonBlocking(doc(db, `user_roles_${roleKey}`, userToDelete));
+    }
+
     deleteDocumentNonBlocking(doc(db, "users", userToDelete));
     toast({ title: "User Removed", description: "The account was deleted from the system." });
     setIsDeleteDialogOpen(false);

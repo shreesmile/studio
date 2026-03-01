@@ -43,26 +43,26 @@ service cloud.firestore {
     function canManageTarget(targetData) {
       return isSuperAdmin() || 
              (targetData != null && (
-               (isAdmin() && targetData.role != 'Super Admin') ||
-               (isManager() && (targetData.role == 'Team Lead' || targetData.role == 'Employee')) ||
-               (isTeamLead() && targetData.role == 'Employee')
+               (isAdmin() && targetData.get('role', 'Employee') != 'Super Admin') ||
+               (isManager() && (targetData.get('role', 'Employee') == 'Team Lead' || targetData.get('role', 'Employee') == 'Employee')) ||
+               (isTeamLead() && targetData.get('role', 'Employee') == 'Employee')
              ));
     }
 
     // --- COLLECTION RULES ---
 
     match /users/{userId} {
-      allow get: if isOwner(userId) || isTeamLead();
+      allow get: if isSignedIn() && (isOwner(userId) || isTeamLead());
       allow list: if isTeamLead();
-      allow create: if isOwner(userId) || canCreateRole(request.resource.data.role);
-      allow update: if isOwner(userId) || canManageTarget(resource.data);
-      allow delete: if isAdmin() && canManageTarget(resource.data);
+      allow create: if isSignedIn() && (isOwner(userId) || canCreateRole(request.resource.data.role));
+      allow update: if isSignedIn() && (isOwner(userId) || canManageTarget(resource.data));
+      allow delete: if isSignedIn() && isAdmin() && canManageTarget(resource.data);
     }
 
     // Role Assignment Collections (DBAC)
     match /user_roles_super_admin/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId) || isSuperAdmin();
+      allow write: if isSuperAdmin();
     }
     match /user_roles_admin/{userId} {
       allow read: if isSignedIn();
@@ -84,8 +84,8 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow read: if isSignedIn();
       allow create: if isTeamLead();
-      allow update: if isOwner(resource.data.assignedToId) || isTeamLead();
-      allow delete: if isAdmin() || (resource != null && resource.data.assignedById == request.auth.uid);
+      allow update: if isSignedIn() && (isOwner(resource.data.assignedToId) || isTeamLead());
+      allow delete: if isSignedIn() && (isAdmin() || (resource != null && resource.data.assignedById == request.auth.uid));
     }
 
     match /roles/{roleId} { allow read: if isSignedIn(); allow write: if isSuperAdmin(); }
