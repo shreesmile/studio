@@ -56,7 +56,6 @@ export function TaskManagement() {
   const tasks = allTasks?.filter(t => filterStatus === 'all' || t.status === filterStatus) || [];
 
   const usersRef = useMemoFirebase(() => {
-    // Only fetch user directory if role is Team Lead or above
     if (!currentUser || ROLE_POWER[currentUser.role] < 1) return null;
     return collection(db, "users");
   }, [db, currentUser]);
@@ -82,7 +81,10 @@ export function TaskManagement() {
     if (!target || !currentUser) return;
 
     const taskData = {
-      ...newTask,
+      title: newTask.title,
+      description: newTask.description,
+      assignedToId: newTask.assignedToId,
+      deadline: newTask.deadline,
       status: 'pending',
       assignedById: currentUser.id,
       assignedByRole: currentUser.role,

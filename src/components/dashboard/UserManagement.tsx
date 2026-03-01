@@ -165,7 +165,6 @@ export function UserManagement() {
     setIsSubmitting(true);
     try {
       if (modalMode === 'add') {
-        // 1. Create Auth Account via Server API
         const response = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -178,14 +177,9 @@ export function UserManagement() {
         });
 
         const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || "Failed to create authentication account.");
-        }
+        if (!response.ok) throw new Error(result.error || "Failed to create account.");
 
         const newUid = result.uid;
-        
-        // 2. Create Firestore profile
         const userData = { 
           id: newUid,
           name: formData.name,
@@ -193,9 +187,9 @@ export function UserManagement() {
           role: formData.role,
           department: formData.department || 'General',
           password: formData.password || 'password123',
-          status: 'Active',
-          createdAt: serverTimestamp(), 
-          updatedAt: serverTimestamp() 
+          status: 'Active' as const,
+          createdAt: new Date().toISOString(), 
+          updatedAt: new Date().toISOString() 
         };
         
         setDocumentNonBlocking(doc(db, "users", newUid), userData, { merge: true });
@@ -211,7 +205,7 @@ export function UserManagement() {
           role: formData.role,
           department: formData.department,
           password: formData.password,
-          updatedAt: serverTimestamp()
+          updatedAt: new Date().toISOString()
         };
         
         if (selectedUser.role !== updateData.role) {

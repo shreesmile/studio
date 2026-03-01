@@ -31,7 +31,6 @@ export function OverviewTab() {
   const { data: todayAttendance, isLoading: loadingAtt } = useCollection(attendanceQuery);
 
   const usersQuery = useMemoFirebase(() => {
-    // Only Team Leads and above can see other users
     if (!user || !['Super Admin', 'Admin', 'Manager', 'Team Lead'].includes(user.role)) return null;
     return query(collection(db, "users"), limit(100));
   }, [db, user]);

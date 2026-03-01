@@ -15,7 +15,6 @@ service cloud.firestore {
     }
 
     function getUserData(uid) {
-      // Direct data access to avoid deep nesting issues
       return get(/databases/$(database)/documents/users/$(uid)).data;
     }
 
@@ -24,23 +23,18 @@ service cloud.firestore {
       return myData != null ? getLevel(myData.role) : 0;
     }
 
-    function isSuperior(targetRole) {
-      return getMyWeight() > getLevel(targetRole);
-    }
-
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn() && getMyWeight() >= 2;
-      allow create: if isSignedIn() && (request.auth.uid == userId || isSuperior(request.resource.data.role));
+      allow create: if isSignedIn() && (request.auth.uid == userId || getMyWeight() > getLevel(request.resource.data.role));
       allow update: if isSignedIn() && (
         (request.auth.uid == userId && request.resource.data.role == resource.data.role) ||
-        isSuperior(resource.data.role)
+        getMyWeight() > getLevel(resource.data.role)
       );
-      allow delete: if isSignedIn() && isSuperior(resource.data.role);
+      allow delete: if isSignedIn() && getMyWeight() > getLevel(resource.data.role);
     }
 
     match /attendance/{attendanceId} {
-      // Refined read rule for Employees to support listing with filters
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
         getMyWeight() >= 4 ||
@@ -71,13 +65,14 @@ service cloud.firestore {
         getMyWeight() >= 4 ||
         (getMyWeight() >= 2 && resource.data.assignedToDepartment == getUserData(request.auth.uid).department)
       );
-      allow create: if isSignedIn() && isSuperior(request.resource.data.assignedToRole);
+      allow create: if isSignedIn() && getMyWeight() >= 2;
       allow update: if isSignedIn() && (
         resource.data.assignedToId == request.auth.uid ||
         resource.data.assignedById == request.auth.uid ||
-        isSuperior(resource.data.assignedToRole)
+        getMyWeight() >= 3 ||
+        (getMyWeight() >= 2 && resource.data.assignedToDepartment == getUserData(request.auth.uid).department)
       );
-      allow delete: if isSignedIn() && isSuperior(resource.data.assignedToRole);
+      allow delete: if isSignedIn() && (resource.data.assignedById == request.auth.uid || getMyWeight() >= 4);
     }
 
     match /user_roles_Super_Admin/{uid} { allow read, write: if isSignedIn() && getMyWeight() == 5; }
