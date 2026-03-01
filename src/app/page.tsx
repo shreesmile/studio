@@ -35,6 +35,8 @@ function DashboardContent() {
       return;
     }
 
+    // Only initiate synchronization if the authenticated user has changed
+    // or if the profile is missing/mismatched.
     if (user && syncRef.current !== user.uid) {
       syncRef.current = user.uid;
       setIsInitializing(true);
@@ -59,6 +61,7 @@ function DashboardContent() {
     setActiveTab(id);
   }, []);
 
+  // Strict check to ensure we only render the dashboard when auth and profile are aligned
   if (isUserLoading || (user && (isInitializing || !profile || profile.id !== user.uid))) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">

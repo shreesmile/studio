@@ -6,10 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { CalendarCheck, TrendingUp, Sparkles, BrainCircuit, Loader2 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
-import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, where, limit } from "firebase/firestore";
-import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase";
+import { collection, query, where, limit, orderBy } from "firebase/firestore";
+import { format } from "date-fns";
 
 export function OverviewTab() {
   const { profile: user } = useAuthStore();
@@ -22,7 +22,7 @@ export function OverviewTab() {
     
     let q = query(collection(db, "attendance"), where("date", "==", today));
     
-    // Strict Guard: Prevent broad list for Employees or if profile is still loading
+    // Strict Guard: Prevent broad list for Employees or if profile is still loading/mismatched
     if (!user || user.role === 'Employee' || user.id !== authUser.uid) {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role) && user.department) {
@@ -34,6 +34,7 @@ export function OverviewTab() {
   const { data: todayAttendance, isLoading: loadingAtt } = useCollection(attendanceQuery);
 
   const usersQuery = useMemoFirebase(() => {
+    // Only Team Lead and above can fetch user directory for overview stats
     if (!user || !user.role || !authUser || user.id !== authUser.uid) return null;
     if (!['Super Admin', 'Admin', 'Manager', 'Team Lead'].includes(user.role)) return null;
     return query(collection(db, "users"), limit(100));
@@ -116,7 +117,9 @@ export function OverviewTab() {
                     <div className={`w-2 h-2 rounded-full ${att.clockOut ? 'bg-gray-400' : 'bg-green-500 animate-pulse'}`} />
                     <div>
                       <p className="text-xs font-bold text-foreground">{att.userName}</p>
-                      <p className="text-[9px] text-muted-foreground uppercase font-medium">{att.department} • Clocked at {att.clockIn ? format(new Date(att.clockIn), "HH:mm") : "--:--"}</p>
+                      <p className="text-[9px] text-muted-foreground uppercase font-medium">
+                        {att.department} • {att.project || "Operational Sync"}
+                      </p>
                     </div>
                   </div>
                   <Badge variant={att.status === 'Late' ? 'destructive' : 'secondary'} className="text-[8px] font-black tracking-widest uppercase">

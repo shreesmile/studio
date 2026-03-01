@@ -26,13 +26,12 @@ export function AttendanceTab() {
   const [notes, setNotes] = useState("");
 
   const attendanceQuery = useMemoFirebase(() => {
-    // CRITICAL: Ensure UID sync before list operation. 
-    // If profile is missing, fallback to authUser.uid for security-compliant filtering.
     if (!authUser) return null;
     
     let q = query(collection(db, "attendance"));
     
-    // Strict Guard: If role is Employee or role is not yet loaded, force own-data filter
+    // Strict Guard: Force own-data filter if user is Employee or role is not yet confirmed
+    // This is critical to satisfy Firestore Security Rules during sync.
     if (!user || user.role === 'Employee' || user.id !== authUser.uid) {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role)) {
