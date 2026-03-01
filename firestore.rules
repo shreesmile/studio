@@ -4,7 +4,6 @@ service cloud.firestore {
 
     /**
      * FIRESTORE SECURITY RULES - ROBUST RBAC HIERARCHY
-     * Uses Standard Firestore CEL function lower()
      */
 
     // --- GLOBAL HELPER FUNCTIONS ---
@@ -17,23 +16,27 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     function getRole() {
-      // Safely fetch role from user profile
-      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      return userDoc != null && 'role' in userDoc.data ? userDoc.data.role : 'Employee';
+      let data = getUserData();
+      return data != null && 'role' in data ? data.role : 'Employee';
     }
 
     function roleToLevel(role) {
-      return role == 'Super Admin' ? 100 :
-             role == 'Admin' ? 80 :
-             role == 'Manager' ? 60 :
-             role == 'Team Lead' ? 40 : 20;
+      let r = role.lower();
+      return r == 'super admin' ? 100 :
+             r == 'admin' ? 80 :
+             r == 'manager' ? 60 :
+             r == 'team lead' ? 40 : 20;
     }
 
     function hasRole(roleName) {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/user_roles_$(roleName.replace(' ', '_'))/$(request.auth.uid)) ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getRole() == roleName)
+        getRole() == roleName
       );
     }
 
@@ -44,9 +47,7 @@ service cloud.firestore {
 
     function canManageTarget(targetRole) {
       let myRole = getRole();
-      let myLevel = roleToLevel(myRole);
-      let targetLevel = roleToLevel(targetRole);
-      return (myLevel > targetLevel) || (myRole == 'Super Admin');
+      return (roleToLevel(myRole) > roleToLevel(targetRole)) || (myRole == 'Super Admin');
     }
 
     // --- COLLECTION RULES ---
@@ -58,9 +59,9 @@ service cloud.firestore {
       // Allow initial profile creation for any authenticated user
       allow create: if isSignedIn();
       
-      // Allow update if owner OR if managing a subordinate
+      // Allow update if owner (but cannot change role) OR if managing a subordinate
       allow update: if isSignedIn() && (
-        isOwner(userId) || 
+        (isOwner(userId) && request.resource.data.role == resource.data.role) || 
         canManageTarget(resource.data.role)
       );
       
@@ -69,7 +70,7 @@ service cloud.firestore {
 
     match /tasks/{taskId} {
       function canViewTask(taskData) {
-        let myProfile = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+        let myProfile = getUserData();
         return isSuperAdmin() ||
                (isAdmin() && taskData.assignedByRole != 'Super Admin') ||
                (isManager() && taskData.assignedToDepartment == myProfile.department) ||
@@ -79,7 +80,6 @@ service cloud.firestore {
 
       allow read: if isSignedIn() && canViewTask(resource.data);
       
-      // Allow task creation based on hierarchy
       allow create: if isSignedIn() && (
         isSuperAdmin() || 
         canManageTarget(request.resource.data.assignedToRole)
