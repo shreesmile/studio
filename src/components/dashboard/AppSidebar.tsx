@@ -11,7 +11,6 @@ import {
   ShieldCheck,
   LogOut,
   ChevronRight,
-  Settings
 } from "lucide-react";
 
 import {
@@ -28,7 +27,6 @@ import { useAuthStore, UserRole } from "@/lib/auth-store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/firebase";
 import { signOut } from "firebase/auth";
-import { SheetTitle } from "@/components/ui/sheet";
 
 interface NavItem {
   id: string;
@@ -70,7 +68,6 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
 
   return (
     <Sidebar collapsible="icon" className="border-r bg-white">
-      <SheetTitle className="sr-only">Main Navigation Sidebar</SheetTitle>
       <SidebarHeader className="h-16 flex items-center px-4 border-b">
         <div className="flex items-center gap-2 overflow-hidden">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-sm">
@@ -115,7 +112,7 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
             <Avatar className="h-9 w-9 border-2 border-white shadow-sm ring-1 ring-muted">
               <AvatarImage src={`https://picsum.photos/seed/${profile?.id}/100/100`} />
               <AvatarFallback className="bg-primary/10 text-primary font-bold">
-                {profile?.name.charAt(0)}
+                {profile?.name.charAt(0) || "U"}
               </AvatarFallback>
             </Avatar>
             {state !== "collapsed" && (

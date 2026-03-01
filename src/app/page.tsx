@@ -33,7 +33,7 @@ function DashboardContent() {
   const db = useFirestore();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isInitializing, setIsInitializing] = useState(true);
-  const syncRef = useRef<string | null>(null);
+  const syncAttemptedFor = useRef<string | null>(null);
 
   useEffect(() => {
     // If auth state is settled and there's no user, stop initializing
@@ -42,9 +42,9 @@ function DashboardContent() {
       return;
     }
 
-    // If there's a user and we haven't synced yet for this UID
-    if (user && syncRef.current !== user.uid) {
-      syncRef.current = user.uid;
+    // If there's a user and we haven't synced yet for this UID in this session
+    if (user && syncAttemptedFor.current !== user.uid) {
+      syncAttemptedFor.current = user.uid;
       const unsub = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
         if (docSnap.exists()) {
           setProfile(docSnap.data() as any);

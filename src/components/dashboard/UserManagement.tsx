@@ -301,7 +301,7 @@ export function UserManagement() {
           <DialogHeader>
             <DialogTitle>{modalMode.toUpperCase()} PROFILE</DialogTitle>
             <DialogDescription>
-              Manage organizational profile details for this user.
+              Manage organizational profile details for this user directory entry.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
