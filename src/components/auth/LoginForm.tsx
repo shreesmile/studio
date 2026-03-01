@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from "react";
@@ -7,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth, useFirestore } from "@/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, getIdToken } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc } from "firebase/firestore";
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, UserPlus, LogIn, Sparkles } from "lucide-react";
 import { 
@@ -39,8 +39,8 @@ export function LoginForm() {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
         
-        // Create Firestore profile
-        await setDoc(doc(db, "users", user.uid), {
+        // Create Firestore profile (Non-blocking)
+        setDocumentNonBlocking(doc(db, "users", user.uid), {
           id: user.uid,
           name,
           email,
@@ -48,10 +48,11 @@ export function LoginForm() {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           managerChainIds: []
-        });
+        }, { merge: true });
 
-        const rolePath = `user_roles_${role.toLowerCase().replace(" ", "_")}`;
-        await setDoc(doc(db, rolePath, user.uid), { active: true });
+        // Create Role Assignment (Non-blocking)
+        const rolePath = `user_roles_${role.toLowerCase().replace(/\s+/g, "_")}`;
+        setDocumentNonBlocking(doc(db, rolePath, user.uid), { active: true }, { merge: true });
 
         toast({
           title: "Account created",

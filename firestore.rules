@@ -24,15 +24,24 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/user_roles_admin/$(request.auth.uid));
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/user_roles_admin/$(request.auth.uid)) || 
+        isSuperAdmin()
+      );
     }
 
     function isManager() {
-      return isSignedIn() && exists(/databases/$(database)/documents/user_roles_manager/$(request.auth.uid));
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/user_roles_manager/$(request.auth.uid)) || 
+        isAdmin()
+      );
     }
 
     function isTeamLead() {
-      return isSignedIn() && exists(/databases/$(database)/documents/user_roles_team_lead/$(request.auth.uid));
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/user_roles_team_lead/$(request.auth.uid)) || 
+        isManager()
+      );
     }
 
     // Hierarchy Checks
@@ -41,7 +50,7 @@ service cloud.firestore {
     }
 
     function isHigherAuthority() {
-      return isSuperAdmin() || isAdmin();
+      return isAdmin();
     }
 
     // --- COLLECTION RULES ---
@@ -58,14 +67,14 @@ service cloud.firestore {
 
     match /users/{userId} {
       // Allow read if owner, admin, or manager of this user
-      allow get: if isOwner(userId) || isHigherAuthority() || (resource != null && isSubordinate(resource.data.managerChainIds));
+      allow get: if isOwner(userId) || isHigherAuthority() || (resource != null && resource.data.get('managerChainIds', []) != null && isSubordinate(resource.data.managerChainIds));
       allow list: if isSignedIn();
       
       // Allow creation if the user is setting up their own account (first time) or if an admin is doing it
       allow create: if isOwner(userId) || isHigherAuthority();
       
       // Allow update if owner, admin, or manager
-      allow update: if isOwner(userId) || isHigherAuthority() || (resource != null && isSubordinate(resource.data.managerChainIds));
+      allow update: if isOwner(userId) || isHigherAuthority() || (resource != null && resource.data.get('managerChainIds', []) != null && isSubordinate(resource.data.managerChainIds));
       
       allow delete: if isSuperAdmin();
     }
@@ -74,7 +83,7 @@ service cloud.firestore {
     // These collections simply track UID existence to grant permissions.
     match /user_roles_super_admin/{userId} {
       allow read: if isSignedIn();
-      // Allow self-provisioning for development prototype, or admin management
+      // Allow self-provisioning for development/first user, or admin management
       allow write: if isOwner(userId) || isSuperAdmin(); 
     }
     match /user_roles_admin/{userId} {
@@ -83,27 +92,27 @@ service cloud.firestore {
     }
     match /user_roles_manager/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId) || isHigherAuthority();
+      allow write: if isOwner(userId) || isAdmin();
     }
     match /user_roles_team_lead/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId) || isHigherAuthority() || isManager();
+      allow write: if isOwner(userId) || isManager();
     }
     match /user_roles_employee/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId) || isHigherAuthority() || isManager() || isTeamLead();
+      allow write: if isOwner(userId) || isTeamLead();
     }
 
     match /tasks/{taskId} {
       function canManageTask() {
-        return isHigherAuthority() || (resource != null && isSubordinate(resource.data.assignedToManagerChainIds)) || (resource != null && resource.data.assignedById == request.auth.uid);
+        return isAdmin() || (resource != null && resource.data.get('assignedToManagerChainIds', []) != null && isSubordinate(resource.data.assignedToManagerChainIds)) || (resource != null && resource.data.assignedById == request.auth.uid);
       }
 
       allow get: if isSignedIn() && (resource != null && (resource.data.assignedToId == request.auth.uid || canManageTask()));
       allow list: if isSignedIn();
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (resource != null && (resource.data.assignedToId == request.auth.uid || canManageTask()));
-      allow delete: if isSignedIn() && (resource != null && (isHigherAuthority() || resource.data.assignedById == request.auth.uid));
+      allow delete: if isSignedIn() && (resource != null && (isAdmin() || resource.data.assignedById == request.auth.uid));
     }
   }
 }
