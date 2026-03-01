@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from "react";
@@ -204,15 +205,15 @@ export function TaskManagement() {
           <form onSubmit={handleCreateTask} className="space-y-4">
             <div className="grid gap-2">
               <Label>Task Title</Label>
-              <Input required value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} />
+              <Input required value={newTask.title || ''} onChange={e => setNewTask({...newTask, title: e.target.value})} />
             </div>
             <div className="grid gap-2">
               <Label>Description</Label>
-              <Textarea value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})} />
+              <Textarea value={newTask.description || ''} onChange={e => setNewTask({...newTask, description: e.target.value})} />
             </div>
             <div className="grid gap-2">
               <Label>Assign To Subordinate</Label>
-              <Select required value={newTask.assignedToId} onValueChange={val => setNewTask({...newTask, assignedToId: val})}>
+              <Select required value={newTask.assignedToId || ''} onValueChange={val => setNewTask({...newTask, assignedToId: val})}>
                 <SelectTrigger><SelectValue placeholder="Select team member" /></SelectTrigger>
                 <SelectContent>
                   {subordinates.map(u => (
@@ -223,7 +224,7 @@ export function TaskManagement() {
             </div>
             <div className="grid gap-2">
               <Label>Deadline</Label>
-              <Input type="date" required value={newTask.deadline} onChange={e => setNewTask({...newTask, deadline: e.target.value})} />
+              <Input type="date" required value={newTask.deadline || ''} onChange={e => setNewTask({...newTask, deadline: e.target.value})} />
             </div>
             <DialogFooter><Button type="submit">Deploy Task</Button></DialogFooter>
           </form>

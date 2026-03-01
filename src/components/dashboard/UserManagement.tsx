@@ -135,7 +135,13 @@ export function UserManagement() {
   const handleOpenModal = useCallback((mode: 'add' | 'edit' | 'view', user?: UserData) => {
     setModalMode(mode);
     if (user) {
-      setFormData({ ...user });
+      setFormData({
+        name: user.name || '',
+        email: user.email || '',
+        role: user.role || 'Employee',
+        department: user.department || '',
+        password: user.password || ''
+      });
       setSelectedUser(user);
     } else {
       setFormData({ name: '', email: '', role: 'Employee', department: '', password: '' });
@@ -273,11 +279,11 @@ export function UserManagement() {
           <form onSubmit={handleSubmit} className="space-y-4 py-2">
             <div className="grid gap-2">
               <Label htmlFor="u-name">Full Name</Label>
-              <Input id="u-name" disabled={modalMode === 'view'} value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+              <Input id="u-name" disabled={modalMode === 'view'} value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="u-email">Email</Label>
-              <Input id="u-email" disabled={modalMode !== 'add'} value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+              <Input id="u-email" disabled={modalMode !== 'add'} value={formData.email || ''} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="u-pass">Password</Label>
@@ -285,7 +291,7 @@ export function UserManagement() {
                 id="u-pass"
                 type="text" 
                 disabled={modalMode === 'view'} 
-                value={formData.password} 
+                value={formData.password || ''} 
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
               />
             </div>
@@ -293,7 +299,7 @@ export function UserManagement() {
               <Label htmlFor="u-role">Assign Role</Label>
               <Select 
                 disabled={modalMode === 'view' || (currentUser?.role !== 'Super Admin' && currentUser?.role !== 'Admin')} 
-                value={formData.role} 
+                value={formData.role || 'Employee'} 
                 onValueChange={(val: UserRole) => setFormData({ ...formData, role: val })}
               >
                 <SelectTrigger id="u-role"><SelectValue /></SelectTrigger>
@@ -308,7 +314,7 @@ export function UserManagement() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="u-dept">Department</Label>
-              <Input id="u-dept" disabled={modalMode === 'view'} value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })} />
+              <Input id="u-dept" disabled={modalMode === 'view'} value={formData.department || ''} onChange={(e) => setFormData({ ...formData, department: e.target.value })} />
             </div>
             <DialogFooter className="pt-4">
               {modalMode !== 'view' && <Button type="submit" className="w-full sm:w-auto">Save Profile</Button>}
