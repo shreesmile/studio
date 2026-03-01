@@ -160,22 +160,31 @@ export function UserManagement() {
         const newId = doc(collection(db, "users")).id;
         const newDocRef = doc(db, "users", newId);
         const userData = { 
-          ...formData, 
-          id: newId, 
+          id: newId,
+          name: formData.name || '',
+          email: formData.email || '',
+          role: formData.role || 'Employee',
+          department: formData.department || '',
+          password: formData.password || '',
           createdAt: serverTimestamp(), 
           updatedAt: serverTimestamp() 
         };
         setDocumentNonBlocking(newDocRef, userData, { merge: true });
         
-        const roleKey = (formData.role || "Employee").toLowerCase().replace(/\s+/g, '_');
+        const roleKey = (userData.role).toLowerCase().replace(/\s+/g, '_');
         setDocumentNonBlocking(doc(db, `user_roles_${roleKey}`, newId), { active: true }, { merge: true });
 
         toast({ title: "User Created", description: "The profile has been added to RoleFlow." });
       } else if (modalMode === 'edit' && selectedUser?.id) {
-        updateDocumentNonBlocking(doc(db, "users", selectedUser.id), { 
-          ...formData, 
-          updatedAt: serverTimestamp() 
-        });
+        const updateData = {
+          name: formData.name || '',
+          email: formData.email || '',
+          role: formData.role || 'Employee',
+          department: formData.department || '',
+          password: formData.password || '',
+          updatedAt: serverTimestamp()
+        };
+        updateDocumentNonBlocking(doc(db, "users", selectedUser.id), updateData);
         toast({ title: "Profile Updated", description: "Changes saved successfully." });
       }
       setIsModalOpen(false);

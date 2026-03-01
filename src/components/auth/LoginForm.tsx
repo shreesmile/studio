@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from "react";
@@ -43,23 +44,24 @@ export function LoginForm() {
         
         const profileData = {
           id: user.uid,
-          name,
-          email,
-          password, // Added for visibility in the user management table
+          name: name || "Anonymous User",
+          email: email,
+          password: password, // Stored for administrative visibility
           role: role as StoreUserRole,
+          department: "Default",
           createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          managerChainIds: []
+          updatedAt: new Date().toISOString()
         };
 
         // Update local store immediately to stop sync loops
-        setProfile(profileData);
+        setProfile(profileData as any);
 
         // Create Firestore profile (Non-blocking)
         setDocumentNonBlocking(doc(db, "users", user.uid), profileData, { merge: true });
 
         // Create Role Assignment (Non-blocking)
-        const rolePath = `user_roles_${role.toLowerCase().replace(/\s+/g, "_")}`;
+        const roleKey = role.toLowerCase().replace(/\s+/g, "_");
+        const rolePath = `user_roles_${roleKey}`;
         setDocumentNonBlocking(doc(db, rolePath, user.uid), { active: true }, { merge: true });
 
         toast({
@@ -69,7 +71,6 @@ export function LoginForm() {
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
-        // Profile will be synced by the page's useEffect
       }
 
       // Sync with Next.js Middleware via session API

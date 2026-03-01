@@ -17,11 +17,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Corrected to use toLower() which is the valid CEL function
     function hasRole(roleName) {
-      let roleDoc = roleName.toLower().replace(" ", "_");
+      let roleKey = roleName.toLower().replace(" ", "_");
       return isSignedIn() && (
-        exists(/databases/$(database)/documents/user_roles_$(roleDoc)/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/user_roles_$(roleKey)/$(request.auth.uid)) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == roleName)
       );
@@ -40,16 +39,13 @@ service cloud.firestore {
              (isTeamLead() && targetRole == 'Employee');
     }
 
-    // Hierarchy Logic for Management (Checks existing data)
-    function canManageTarget(targetUserId) {
-      let targetPath = /databases/$(database)/documents/users/$(targetUserId);
-      let target = exists(targetPath) ? get(targetPath).data : null;
-      
+    // Hierarchy Logic for Management (Optimized for Updates)
+    function canManageTarget(targetData) {
       return isSuperAdmin() || 
-             (target != null && (
-               (isAdmin() && target.role != 'Super Admin') ||
-               (isManager() && (target.role == 'Team Lead' || target.role == 'Employee')) ||
-               (isTeamLead() && target.role == 'Employee')
+             (targetData != null && (
+               (isAdmin() && targetData.role != 'Super Admin') ||
+               (isManager() && (targetData.role == 'Team Lead' || targetData.role == 'Employee')) ||
+               (isTeamLead() && targetData.role == 'Employee')
              ));
     }
 
@@ -59,8 +55,8 @@ service cloud.firestore {
       allow get: if isOwner(userId) || isTeamLead();
       allow list: if isTeamLead();
       allow create: if isOwner(userId) || canCreateRole(request.resource.data.role);
-      allow update: if isOwner(userId) || canManageTarget(userId);
-      allow delete: if isAdmin() && canManageTarget(userId);
+      allow update: if isOwner(userId) || canManageTarget(resource.data);
+      allow delete: if isAdmin() && canManageTarget(resource.data);
     }
 
     // Role Assignment Collections (DBAC)
