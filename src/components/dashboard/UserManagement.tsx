@@ -65,6 +65,7 @@ interface UserData {
   role: UserRole;
   department: string;
   password: string;
+  status: 'Active' | 'Pending' | 'Blocked';
   createdAt?: any;
 }
 
@@ -82,6 +83,7 @@ export function UserManagement() {
   const { profile: currentUser } = useAuthStore();
   const [search, setSearch] = useState("");
   const [showPasswords, setShowPasswords] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const currentRolePower = useMemo(() => 
     ROLE_HIERARCHY[currentUser?.role || 'Employee'], 
@@ -109,8 +111,9 @@ export function UserManagement() {
     name: '',
     email: '',
     role: 'Employee',
-    department: '',
-    password: ''
+    department: 'General',
+    password: '',
+    status: 'Active'
   });
 
   const filteredUsers = useMemo(() => {
@@ -143,40 +146,64 @@ export function UserManagement() {
         name: user.name || '',
         email: user.email || '',
         role: user.role || 'Employee',
-        department: user.department || '',
-        password: user.password || ''
+        department: user.department || 'General',
+        password: user.password || '',
+        status: user.status || 'Active'
       });
       setSelectedUser(user);
     } else {
-      setFormData({ id: '', name: '', email: '', role: 'Employee', department: 'General', password: '' });
+      setFormData({ id: '', name: '', email: '', role: 'Employee', department: 'General', password: '', status: 'Active' });
       setSelectedUser(null);
     }
     setIsModalOpen(true);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (modalMode === 'view') return;
+    if (modalMode === 'view' || isSubmitting) return;
     
+    setIsSubmitting(true);
     try {
       if (modalMode === 'add') {
-        const newId = doc(collection(db, "users")).id;
+        // 1. Create Auth Account via Server API
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password || 'password123',
+            name: formData.name,
+            role: formData.role
+          })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to create authentication account.");
+        }
+
+        const newUid = result.uid;
+        
+        // 2. Create Firestore profile
         const userData = { 
-          id: newId,
+          id: newUid,
           name: formData.name,
           email: formData.email,
           role: formData.role,
           department: formData.department || 'General',
           password: formData.password || 'password123',
+          status: 'Active',
           createdAt: serverTimestamp(), 
           updatedAt: serverTimestamp() 
         };
-        setDocumentNonBlocking(doc(db, "users", newId), userData, { merge: true });
+        
+        setDocumentNonBlocking(doc(db, "users", newUid), userData, { merge: true });
         
         const rolePath = `user_roles_${userData.role.replace(/\s+/g, '_')}`;
-        setDocumentNonBlocking(doc(db, rolePath, newId), { active: true }, { merge: true });
+        setDocumentNonBlocking(doc(db, rolePath, newUid), { active: true }, { merge: true });
 
-        toast({ title: "User Created", description: "Profile has been deployed." });
+        toast({ title: "User Created", description: "Identity and profile have been deployed." });
       } else if (modalMode === 'edit' && selectedUser?.id) {
         const updateData = {
           name: formData.name,
@@ -199,7 +226,13 @@ export function UserManagement() {
       }
       setIsModalOpen(false);
     } catch (error: any) {
-      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Deployment Failed",
+        description: error.message
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -210,7 +243,7 @@ export function UserManagement() {
       const rolePath = `user_roles_${target.role.replace(/\s+/g, '_')}`;
       deleteDocumentNonBlocking(doc(db, rolePath, userToDelete));
       deleteDocumentNonBlocking(doc(db, "users", userToDelete));
-      toast({ title: "User Removed", description: "Account purged." });
+      toast({ title: "User Removed", description: "Account purged from directory." });
     }
     setIsDeleteDialogOpen(false);
     setUserToDelete(null);
@@ -360,7 +393,12 @@ export function UserManagement() {
               />
             </div>
             <DialogFooter>
-              {modalMode !== 'view' && <Button type="submit" className="w-full">Commit Changes</Button>}
+              {modalMode !== 'view' && (
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {modalMode === 'add' ? 'Deploy Identity' : 'Commit Changes'}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </DialogContent>

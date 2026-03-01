@@ -38,9 +38,7 @@ export function TaskManagement() {
 
     switch (currentUser.role) {
       case 'Super Admin': break;
-      case 'Admin':
-        // No strict filtering for admins
-        break;
+      case 'Admin': break;
       case 'Manager':
       case 'Team Lead':
         if (currentUser.department) {
