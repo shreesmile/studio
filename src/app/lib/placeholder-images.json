@@ -1,0 +1,17 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "hero-bg",
+      "description": "Professional office background",
+      "imageUrl": "https://picsum.photos/seed/roleflow-hero/1200/800",
+      "imageHint": "office workspace"
+    },
+    {
+      "id": "avatar-admin",
+      "description": "Admin user avatar",
+      "imageUrl": "https://picsum.photos/seed/admin-user/150/150",
+      "imageHint": "professional portrait"
+    }
+  ]
+}
