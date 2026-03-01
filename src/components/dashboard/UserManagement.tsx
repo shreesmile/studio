@@ -98,6 +98,7 @@ export function UserManagement() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
+  // Use defined defaults to prevent React uncontrolled to controlled input warnings
   const [formData, setFormData] = useState<Partial<UserData>>({
     name: '',
     email: '',

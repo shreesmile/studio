@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
@@ -60,7 +61,7 @@ function DashboardContent() {
     }
     
     return () => { isMounted = false; };
-  }, [user, profile, db, setProfile, clearStore]); // isSyncing removed from deps to prevent loop
+  }, [user, profile, db, setProfile, clearStore]); // isSyncing removed from deps to prevent infinite loop
 
   // Tab permission check
   useEffect(() => {
