@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
@@ -87,21 +86,19 @@ export function UserManagement() {
     ROLE_HIERARCHY[currentUser?.role || 'Employee'], 
   [currentUser?.role]);
 
-  // UI Helper for JSX permission checks
-  const isAdminUser = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
+  const isAdminUser = useMemo(() => 
+    currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin',
+  [currentUser?.role]);
 
-  // Firestore Data - Memoized
   const usersRef = useMemoFirebase(() => collection(db, "users"), [db]);
   const { data: users, isLoading } = useCollection<UserData>(usersRef);
 
-  // UI State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view'>('add');
   const [selectedUser, setSelectedUser] = useState<Partial<UserData> | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
-  // Initial form state
   const [formData, setFormData] = useState<UserData>({
     id: '',
     name: '',
@@ -178,7 +175,6 @@ export function UserManagement() {
         };
         setDocumentNonBlocking(newDocRef, userData, { merge: true });
         
-        // Sync role assignment (DBAC)
         const roleKey = (userData.role).toLowerCase().replace(/\s+/g, '_');
         setDocumentNonBlocking(doc(db, `user_roles_${roleKey}`, newId), { active: true }, { merge: true });
 
@@ -193,7 +189,6 @@ export function UserManagement() {
           updatedAt: serverTimestamp()
         };
         
-        // Sync role change in DBAC collections if role updated
         if (selectedUser.role && selectedUser.role !== updateData.role) {
           const oldRoleKey = selectedUser.role.toLowerCase().replace(/\s+/g, '_');
           const newRoleKey = updateData.role.toLowerCase().replace(/\s+/g, '_');

@@ -18,7 +18,7 @@ service cloud.firestore {
 
     function hasRole(roleName) {
       return isSignedIn() && (
-        exists(/databases/$(database)/documents/user_roles_$(roleName.toLower().replace(" ", "_"))/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/user_roles_$(roleName.lower().replace(" ", "_"))/$(request.auth.uid)) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == roleName)
       );
@@ -39,7 +39,7 @@ service cloud.firestore {
       allow get: if isSignedIn() && (isOwner(userId) || isTeamLead());
       allow list: if isTeamLead();
       
-      allow create: if isSignedIn(); // Handled by UI/Existence checks
+      allow create: if isSignedIn();
       allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
       allow delete: if isSignedIn() && isAdmin();
     }
