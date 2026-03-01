@@ -142,7 +142,7 @@ export function UserManagement() {
       });
       setSelectedUser(user);
     } else {
-      setFormData({ id: '', name: '', email: '', role: 'Employee', department: 'General', password: 'password123' });
+      setFormData({ id: '', name: '', email: '', role: 'Employee', department: 'General', password: '' });
       setSelectedUser(null);
     }
     setIsModalOpen(true);
@@ -168,7 +168,7 @@ export function UserManagement() {
         setDocumentNonBlocking(doc(db, "users", newId), userData, { merge: true });
         
         // Marker for security rules
-        const rolePath = `user_roles_${userData.role.replace(/\s+/g, '_')}`;
+        const rolePath = `user_roles_${userData.role.replace(/\s+/g, '_').toLowerCase()}`;
         setDocumentNonBlocking(doc(db, rolePath, newId), { active: true }, { merge: true });
 
         toast({ title: "User Created", description: "Profile has been deployed." });
@@ -183,8 +183,8 @@ export function UserManagement() {
         };
         
         if (selectedUser.role !== updateData.role) {
-          const oldPath = `user_roles_${selectedUser.role?.replace(/\s+/g, '_')}`;
-          const newPath = `user_roles_${updateData.role.replace(/\s+/g, '_')}`;
+          const oldPath = `user_roles_${selectedUser.role?.replace(/\s+/g, '_').toLowerCase()}`;
+          const newPath = `user_roles_${updateData.role.replace(/\s+/g, '_').toLowerCase()}`;
           deleteDocumentNonBlocking(doc(db, oldPath, selectedUser.id));
           setDocumentNonBlocking(doc(db, newPath, selectedUser.id), { active: true }, { merge: true });
         }
@@ -202,7 +202,7 @@ export function UserManagement() {
     if (!userToDelete) return;
     const target = users?.find(u => u.id === userToDelete);
     if (target) {
-      const rolePath = `user_roles_${target.role.replace(/\s+/g, '_')}`;
+      const rolePath = `user_roles_${target.role.replace(/\s+/g, '_').toLowerCase()}`;
       deleteDocumentNonBlocking(doc(db, rolePath, userToDelete));
       deleteDocumentNonBlocking(doc(db, "users", userToDelete));
       toast({ title: "User Removed", description: "Account purged." });
@@ -319,6 +319,7 @@ export function UserManagement() {
               <Label>Administrative Password</Label>
               <Input 
                 disabled={modalMode === 'view'} 
+                type="text"
                 value={formData.password} 
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
                 required

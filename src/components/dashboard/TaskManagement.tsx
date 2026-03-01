@@ -60,19 +60,22 @@ export function TaskManagement() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const tasksRef = useMemoFirebase(() => {
+    if (!currentUser) return null; // FIX: Prevents unauthorized "list all" requests
     let q = query(collection(db, "tasks"));
-    if (!currentUser) return q;
 
     switch (currentUser.role) {
       case 'Super Admin': break;
       case 'Admin':
+        // Admins see all tasks except those created by Super Admins
         q = query(q, where("assignedByRole", "!=", "Super Admin"));
         break;
       case 'Manager':
       case 'Team Lead':
+        // Team-based visibility
         q = query(q, where("assignedToDepartment", "==", currentUser.department));
         break;
       case 'Employee':
+        // Individual visibility
         q = query(q, where("assignedToId", "==", currentUser.id));
         break;
     }
@@ -90,11 +93,11 @@ export function TaskManagement() {
     const myPower = ROLE_POWER[currentUser.role];
     const targetPower = ROLE_POWER[u.role];
 
-    // Assignment matrix logic
+    // Strictly follow the Assignment Matrix
     if (currentUser.role === 'Super Admin') return true;
-    if (currentUser.role === 'Admin') return targetPower < 3;
-    if (currentUser.role === 'Manager') return targetPower < 2 && u.department === currentUser.department;
-    if (currentUser.role === 'Team Lead') return targetPower === 0 && u.department === currentUser.department;
+    if (currentUser.role === 'Admin') return targetPower <= 2; // Manager, Team Lead, Employee
+    if (currentUser.role === 'Manager') return targetPower <= 1 && u.department === currentUser.department; // Team Lead, Employee
+    if (currentUser.role === 'Team Lead') return targetPower === 0 && u.department === currentUser.department; // Employee
     return false;
   }) || [];
 

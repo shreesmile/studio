@@ -12,12 +12,6 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Role markers are stored in collections named user_roles_Role_Name
-    // We sanitize the role name to match the collection naming convention
-    function hasRole(role) {
-      return exists(/databases/$(database)/documents/user_roles_$(role.replace(' ', '_'))/$(request.auth.uid));
-    }
-
     function getRoleLevel(role) {
       let r = role.lower();
       return r == 'super admin' ? 4 :
@@ -27,8 +21,8 @@ service cloud.firestore {
     }
 
     function getMyLevel() {
-      let data = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return getRoleLevel(data.role);
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc != null && 'role' in userDoc.data ? getRoleLevel(userDoc.data.role) : -1;
     }
 
     function canManageTarget(targetRole) {
@@ -41,8 +35,8 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if isSignedIn() && getMyLevel() >= 1; // Team Lead+ can view directory
       
-      // Allow registration or creation by superiors
-      allow create: if isSignedIn() && (isOwner(userId) || canManageTarget(request.resource.data.role));
+      // Allow registration (self-service) or creation by superiors
+      allow create: if (isSignedIn() && isOwner(userId)) || canManageTarget(request.resource.data.role);
       
       // Allow update if owner (but role must stay same) OR if superior
       allow update: if isSignedIn() && (
@@ -58,15 +52,16 @@ service cloud.firestore {
         return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.department;
       }
 
+      // Read rules aligned with the query filters in TaskManagement.tsx
       allow read: if isSignedIn() && (
         getMyLevel() >= 3 || // Admin+ can see all
-        (getMyLevel() >= 1 && resource.data.assignedToDepartment == myDept()) || // Team Lead+ see team
+        (getMyLevel() >= 1 && resource.data.assignedToDepartment == myDept()) || // Manager/Lead see team
         resource.data.assignedToId == request.auth.uid // Employee sees own
       );
 
       allow create: if isSignedIn() && (
         getMyLevel() >= 3 || // Admin+
-        (getMyLevel() >= 1 && canManageTarget(request.resource.data.assignedToRole)) // Team Lead+ assign to subordinates
+        (getMyLevel() >= 1 && canManageTarget(request.resource.data.assignedToRole)) // Higher roles assign to lower
       );
 
       allow update: if isSignedIn() && (
@@ -78,10 +73,10 @@ service cloud.firestore {
       allow delete: if isSignedIn() && getMyLevel() >= 3;
     }
 
-    // Helper collections for role indexing
+    // Role index collections for existence checks (optional but supported)
     match /user_roles_{role}/{userId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && getMyLevel() >= 3; // Admins manage role index
+      allow write: if isSignedIn() && getMyLevel() >= 3;
     }
   }
 }
