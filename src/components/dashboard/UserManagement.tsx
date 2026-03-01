@@ -36,7 +36,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Search, UserPlus, Eye, Edit, Trash2, Loader2, ShieldAlert, Lock } from "lucide-react";
+import { MoreHorizontal, Search, UserPlus, Eye, Edit, Trash2, Loader2, ShieldAlert, Lock, EyeOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +65,7 @@ interface UserData {
   email: string;
   role: UserRole;
   department: string;
+  password?: string;
   createdAt?: any;
 }
 
@@ -81,6 +82,7 @@ export function UserManagement() {
   const { toast } = useToast();
   const { profile: currentUser } = useAuthStore();
   const [search, setSearch] = useState("");
+  const [showPasswords, setShowPasswords] = useState(false);
   
   const currentRolePower = ROLE_HIERARCHY[currentUser?.role || 'Employee'];
 
@@ -99,7 +101,8 @@ export function UserManagement() {
     name: '',
     email: '',
     role: 'Employee',
-    department: ''
+    department: '',
+    password: ''
   });
 
   const filteredUsers = useMemo(() => {
@@ -111,7 +114,7 @@ export function UserManagement() {
       const term = search.toLowerCase();
       
       // Basic filtering based on hierarchy visibility
-      const targetPower = ROLE_HIERARCHY[u.role];
+      const targetPower = ROLE_HIERARCHY[u.role] || 0;
       const isVisible = currentUser?.role === 'Super Admin' || currentRolePower >= targetPower;
 
       return isVisible && (name.includes(term) || role.includes(term) || email.includes(term));
@@ -132,7 +135,7 @@ export function UserManagement() {
       setFormData(user);
       setSelectedUser(user);
     } else {
-      setFormData({ name: '', email: '', role: 'Employee', department: '' });
+      setFormData({ name: '', email: '', role: 'Employee', department: '', password: '' });
       setSelectedUser(null);
     }
     setIsModalOpen(true);
@@ -179,14 +182,24 @@ export function UserManagement() {
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search team..." 
-            className="pl-9 bg-white"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search team..." 
+              className="pl-9 bg-white"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={() => setShowPasswords(!showPasswords)}
+            title={showPasswords ? "Hide Passwords" : "Show Passwords"}
+          >
+            {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </Button>
         </div>
         {currentUser?.role !== 'Employee' && (
           <Button onClick={() => handleOpenModal('add')} className="bg-primary">
@@ -204,14 +217,15 @@ export function UserManagement() {
               <TableHead className="font-bold">Role</TableHead>
               <TableHead className="font-bold">Department</TableHead>
               <TableHead className="font-bold">Email</TableHead>
+              <TableHead className="font-bold">Password</TableHead>
               <TableHead className="text-right font-bold">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading...</TableCell></TableRow>
             ) : filteredUsers.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No authorized users found.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No authorized users found.</TableCell></TableRow>
             ) : (
               filteredUsers.map((u) => (
                 <TableRow key={u.id}>
@@ -219,6 +233,9 @@ export function UserManagement() {
                   <TableCell><Badge variant={u.role === 'Super Admin' ? 'destructive' : 'secondary'} className="text-[10px]">{u.role}</Badge></TableCell>
                   <TableCell>{u.department || "N/A"}</TableCell>
                   <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {showPasswords ? (u.password || "••••••••") : "••••••••"}
+                  </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -255,6 +272,16 @@ export function UserManagement() {
             <div className="grid gap-2">
               <Label>Email</Label>
               <Input disabled={modalMode !== 'add'} value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Password</Label>
+              <Input 
+                type={modalMode === 'view' ? 'password' : 'text'} 
+                disabled={modalMode === 'view'} 
+                value={formData.password} 
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
+                placeholder="Enter password"
+              />
             </div>
             <div className="grid gap-2">
               <Label>Assign Role</Label>

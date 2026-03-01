@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from "react";
@@ -46,6 +45,7 @@ export function LoginForm() {
           id: user.uid,
           name,
           email,
+          password, // Added for visibility in the user management table
           role: role as StoreUserRole,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
