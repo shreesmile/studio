@@ -22,12 +22,13 @@ import {
   Filter,
   User,
   MoreVertical,
-  Loader2
+  Loader2,
+  Settings2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/lib/auth-store";
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, serverTimestamp } from "firebase/firestore";
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
+import { collection, query, where, serverTimestamp, doc } from "firebase/firestore";
 import { 
   Dialog, 
   DialogContent, 
@@ -39,6 +40,14 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 
 export function TaskManagement() {
   const { profile: currentUser } = useAuthStore();
@@ -50,21 +59,24 @@ export function TaskManagement() {
   // Task Fetching Logic
   const tasksRef = useMemoFirebase(() => {
     let q = query(collection(db, "tasks"));
+    // Employees only see their own tasks
     if (currentUser?.role === 'Employee') {
       q = query(q, where("assignedToId", "==", currentUser.id));
     }
     return q;
   }, [db, currentUser]);
   
-  const { data: tasks, isLoading } = useCollection(tasksRef);
+  const { data: allTasks, isLoading } = useCollection(tasksRef);
+
+  // Filter tasks based on status dropdown
+  const tasks = allTasks?.filter(t => filterStatus === 'all' || t.status === filterStatus) || [];
 
   // Subordinates for Assignment
-  const reportsRef = useMemoFirebase(() => query(collection(db, "users")), [db]);
-  const { data: allUsers } = useCollection(reportsRef);
+  const usersRef = useMemoFirebase(() => query(collection(db, "users")), [db]);
+  const { data: allUsers } = useCollection(usersRef);
 
   const subordinates = allUsers?.filter(u => {
-    if (currentUser?.role === 'Super Admin') return true;
-    if (currentUser?.role === 'Admin') return u.role !== 'Super Admin';
+    if (currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') return true;
     if (currentUser?.role === 'Manager') return u.role === 'Team Lead' || u.role === 'Employee';
     if (currentUser?.role === 'Team Lead') return u.role === 'Employee';
     return false;
@@ -95,6 +107,14 @@ export function TaskManagement() {
     toast({ title: "Task Assigned", description: "The task has been successfully dispatched." });
   };
 
+  const handleUpdateStatus = (taskId: string, newStatus: string) => {
+    updateDocumentNonBlocking(doc(db, "tasks", taskId), { 
+      status: newStatus,
+      updatedAt: serverTimestamp() 
+    });
+    toast({ title: "Status Updated", description: `Task marked as ${newStatus}.` });
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed': return 'bg-green-100 text-green-700 border-green-200';
@@ -111,7 +131,7 @@ export function TaskManagement() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-40 bg-white">
               <Filter className="w-3 h-3 mr-2" />
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -120,6 +140,7 @@ export function TaskManagement() {
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="in-progress">In Progress</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="blocked">Blocked</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -135,8 +156,12 @@ export function TaskManagement() {
         <div className="flex justify-center py-20"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {tasks?.map((task) => (
-            <Card key={task.id} className="hover:shadow-md transition-shadow">
+          {tasks.length === 0 ? (
+            <div className="col-span-2 py-20 text-center text-muted-foreground border border-dashed rounded-xl">
+              No tasks found in this category.
+            </div>
+          ) : tasks.map((task) => (
+            <Card key={task.id} className="hover:shadow-md transition-shadow bg-white border-none">
               <CardHeader className="flex flex-row items-start justify-between pb-2">
                 <div className="space-y-1">
                   <Badge variant="outline" className={getStatusColor(task.status)}>
@@ -144,15 +169,28 @@ export function TaskManagement() {
                   </Badge>
                   <CardTitle className="text-lg">{task.title}</CardTitle>
                 </div>
-                <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon"><Settings2 className="h-4 w-4" /></Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Update Status</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => handleUpdateStatus(task.id, 'pending')}>Pending</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleUpdateStatus(task.id, 'in-progress')}>In Progress</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleUpdateStatus(task.id, 'completed')}>Completed</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleUpdateStatus(task.id, 'blocked')}>Blocked</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{task.description}</p>
-                <div className="flex items-center justify-between text-xs pt-4 border-t">
-                  <div className="flex items-center gap-4 text-muted-foreground">
-                    <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{task.deadline}</span>
-                    <span className="flex items-center gap-1"><User className="h-3 w-3" />{allUsers?.find(u => u.id === task.assignedToId)?.name || 'Unknown'}</span>
+                <div className="flex items-center justify-between text-[10px] pt-4 border-t uppercase font-bold tracking-wider text-muted-foreground">
+                  <div className="flex items-center gap-4">
+                    <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Due: {task.deadline}</span>
+                    <span className="flex items-center gap-1"><User className="h-3 w-3" /> {allUsers?.find(u => u.id === task.assignedToId)?.name || 'Unknown'}</span>
                   </div>
+                  {task.assignedByName && <div className="text-accent">By: {task.assignedByName}</div>}
                 </div>
               </CardContent>
             </Card>

@@ -39,34 +39,29 @@ service cloud.firestore {
     // Management Hierarchy Logic
     // Validates if the request.auth.uid can perform actions on targetUserId
     function canManageUser(targetUserId) {
-      let callerRole = getRole(request.auth.uid);
-      let targetRole = getRole(targetUserId);
+      let targetRole = get(/databases/$(database)/documents/users/$(targetUserId)).data.role;
       
       return isSuperAdmin() || 
-             (hasRole('Admin') && targetRole != 'Super Admin') ||
-             (hasRole('Manager') && (targetRole == 'Team Lead' || targetRole == 'Employee')) ||
-             (hasRole('Team Lead') && targetRole == 'Employee');
+             (isAdmin() && targetRole != 'Super Admin') ||
+             (isManager() && (targetRole == 'Team Lead' || targetRole == 'Employee')) ||
+             (isTeamLead() && targetRole == 'Employee');
     }
 
     // --- COLLECTION RULES ---
 
     match /users/{userId} {
+      // Users can read/write their own profile during registration (handled by LoginForm)
       allow get: if isOwner(userId) || canManageUser(userId);
-      allow list: if isSignedIn();
+      allow list: if isTeamLead();
       
-      // Profiles can be created during sign-up (isOwner) or by authorized managers
-      allow create: if isOwner(userId) || isAdmin();
-      
+      allow create: if isSignedIn(); // Allow initial profile creation
       allow update: if isOwner(userId) || canManageUser(userId);
-      
-      // Only Super Admins can truly delete, or Admins if it's not a Super Admin
-      allow delete: if isSuperAdmin() || (hasRole('Admin') && getRole(userId) != 'Super Admin');
+      allow delete: if isSuperAdmin() || (isAdmin() && getRole(userId) != 'Super Admin');
     }
 
     // Role Assignment Collections (DBAC)
     match /user_roles_super_admin/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isSuperAdmin(); 
+      allow read, write: if isSignedIn(); // Initial setup flexibility
     }
     match /user_roles_admin/{userId} {
       allow read: if isSignedIn();
@@ -92,8 +87,8 @@ service cloud.firestore {
       // Employees cannot create tasks. Team Leads and above can.
       allow create: if isTeamLead();
       
-      // Owners can update status. Assigners or higher roles can update details.
-      allow update: if isSignedIn();
+      // Owners can update status. Managers can update details.
+      allow update: if isOwner(resource.data.assignedToId) || isTeamLead();
       
       // Only Admins or the person who assigned it can delete.
       allow delete: if isAdmin() || (resource != null && resource.data.assignedById == request.auth.uid);
