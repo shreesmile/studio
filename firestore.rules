@@ -7,6 +7,11 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function getUserData(uid) {
+      let path = /databases/$(database)/documents/users/$(uid);
+      return exists(path) ? get(path).data : {"role": "Guest", "department": "None"};
+    }
+
     function getLevel(role) {
       return role == 'Super Admin' ? 5 :
              role == 'Admin' ? 4 :
@@ -14,13 +19,8 @@ service cloud.firestore {
              role == 'Team Lead' ? 2 : 1;
     }
 
-    function getUserData(uid) {
-      return get(/databases/$(database)/documents/users/$(uid)).data;
-    }
-
     function getMyWeight() {
-      let myData = getUserData(request.auth.uid);
-      return myData != null ? getLevel(myData.role) : 0;
+      return getLevel(getUserData(request.auth.uid).role);
     }
 
     match /users/{userId} {
