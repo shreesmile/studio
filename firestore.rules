@@ -17,12 +17,8 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function getRole(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role;
-    }
-
     function hasRole(roleName) {
-      let roleKey = roleName.lower().replace(" ", "_");
+      let roleKey = roleName.toLower().replace(" ", "_");
       return isSignedIn() && (
         exists(/databases/$(database)/documents/user_roles_$(roleKey)/$(request.auth.uid)) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 

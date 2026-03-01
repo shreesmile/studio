@@ -87,6 +87,10 @@ export function UserManagement() {
     ROLE_HIERARCHY[currentUser?.role || 'Employee'], 
   [currentUser?.role]);
 
+  const isAdmin = useCallback(() => {
+    return currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
+  }, [currentUser?.role]);
+
   // Firestore Data - Memoized
   const usersRef = useMemoFirebase(() => collection(db, "users"), [db]);
   const { data: users, isLoading } = useCollection<UserData>(usersRef);
