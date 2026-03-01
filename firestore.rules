@@ -52,7 +52,7 @@ service cloud.firestore {
         return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.department;
       }
 
-      // Read rules aligned with the query filters in TaskManagement.tsx
+      // Read rules aligned with the query filters in TaskManagement.tsx and OverviewTab.tsx
       allow read: if isSignedIn() && (
         getMyLevel() >= 3 || // Admin+ can see all
         (getMyLevel() >= 1 && resource.data.assignedToDepartment == myDept()) || // Manager/Lead see team
@@ -61,7 +61,7 @@ service cloud.firestore {
 
       allow create: if isSignedIn() && (
         getMyLevel() >= 3 || // Admin+
-        (getMyLevel() >= 1 && canManageTarget(request.resource.data.assignedToRole)) // Higher roles assign to lower
+        (getMyLevel() >= 1 && getMyLevel() > getRoleLevel(request.resource.data.assignedToRole))
       );
 
       allow update: if isSignedIn() && (
@@ -73,7 +73,7 @@ service cloud.firestore {
       allow delete: if isSignedIn() && getMyLevel() >= 3;
     }
 
-    // Role index collections for existence checks (optional but supported)
+    // Role index collections for existence checks
     match /user_roles_{role}/{userId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn() && getMyLevel() >= 3;

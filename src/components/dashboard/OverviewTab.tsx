@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { 
   Card, 
   CardContent, 
@@ -23,7 +22,7 @@ import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { generatePerformanceInsight, GeneratePerformanceInsightOutput } from "@/ai/flows/ai-performance-insight";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit } from "firebase/firestore";
+import { collection, query, orderBy, limit, where } from "firebase/firestore";
 
 export function OverviewTab() {
   const { profile: user } = useAuthStore();
@@ -31,14 +30,36 @@ export function OverviewTab() {
   const [aiInsight, setAiInsight] = useState<GeneratePerformanceInsightOutput | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
 
-  // REAL DATA: Fetch Users
-  const usersRef = useMemoFirebase(() => collection(db, "users"), [db]);
+  // REAL DATA: Fetch Users (Visible to those who can see the directory)
+  const usersRef = useMemoFirebase(() => {
+    if (!user || user.role === 'Employee') return null;
+    return collection(db, "users");
+  }, [db, user]);
   const { data: usersData, isLoading: loadingUsers } = useCollection(usersRef);
 
-  // REAL DATA: Fetch Recent Activity (Tasks)
-  const recentTasksQuery = useMemoFirebase(() => 
-    query(collection(db, "tasks"), orderBy("createdAt", "desc"), limit(5)), 
-  [db]);
+  // REAL DATA: Fetch Recent Activity (Tasks) - ALIGNED WITH SECURITY RULES
+  const recentTasksQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    let q = query(collection(db, "tasks"));
+
+    // Apply the same filters as TaskManagement to avoid permission errors
+    switch (user.role) {
+      case 'Super Admin': break;
+      case 'Admin':
+        q = query(q, where("assignedByRole", "!=", "Super Admin"));
+        break;
+      case 'Manager':
+      case 'Team Lead':
+        q = query(q, where("assignedToDepartment", "==", user.department));
+        break;
+      case 'Employee':
+        q = query(q, where("assignedToId", "==", user.id));
+        break;
+    }
+
+    return query(q, orderBy("createdAt", "desc"), limit(5));
+  }, [db, user]);
+  
   const { data: recentTasks, isLoading: loadingTasks } = useCollection(recentTasksQuery);
 
   const getInsights = async () => {
@@ -76,14 +97,14 @@ export function OverviewTab() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="shadow-sm border-none bg-white">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Tasks</CardTitle>
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recent Tasks</CardTitle>
             <Clock className="h-4 w-4 text-[#457399]" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-[#2d3748]">
               {loadingTasks ? <Loader2 className="h-6 w-6 animate-spin inline" /> : (recentTasks?.length || 0)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Managed tasks</p>
+            <p className="text-xs text-muted-foreground mt-1">Authorized workflow scope</p>
           </CardContent>
         </Card>
         <Card className="shadow-sm border-none bg-white">
@@ -95,7 +116,7 @@ export function OverviewTab() {
             <div className="text-3xl font-bold text-[#2d3748]">
               {recentTasks?.filter(t => t.status === 'completed').length || 0}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Tasks finalized</p>
+            <p className="text-xs text-muted-foreground mt-1">Tasks finalized in current view</p>
           </CardContent>
         </Card>
       </div>
@@ -114,14 +135,14 @@ export function OverviewTab() {
         {(isAdmin || isManager) && (
           <Card className="shadow-sm border-none bg-white">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Users</CardTitle>
+              <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Directory Reach</CardTitle>
               <Users className="h-4 w-4 text-accent" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-[#2d3748]">
                 {loadingUsers ? <Loader2 className="h-6 w-6 animate-spin inline" /> : (usersData?.length || 0)}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Across all departments</p>
+              <p className="text-xs text-muted-foreground mt-1">Visible organizational members</p>
             </CardContent>
           </Card>
         )}

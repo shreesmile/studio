@@ -167,7 +167,6 @@ export function UserManagement() {
         };
         setDocumentNonBlocking(doc(db, "users", newId), userData, { merge: true });
         
-        // Marker for security rules
         const rolePath = `user_roles_${userData.role.replace(/\s+/g, '_').toLowerCase()}`;
         setDocumentNonBlocking(doc(db, rolePath, newId), { active: true }, { merge: true });
 
