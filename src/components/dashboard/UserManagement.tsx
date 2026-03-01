@@ -81,6 +81,7 @@ export function UserManagement() {
   const [search, setSearch] = useState("");
   const [showPasswords, setShowPasswords] = useState(false);
   
+  // Memoize flags for performance and to avoid reference errors
   const currentRolePower = useMemo(() => 
     ROLE_HIERARCHY[currentUser?.role || 'Employee'], 
   [currentUser?.role]);
@@ -89,7 +90,12 @@ export function UserManagement() {
     currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin',
   [currentUser?.role]);
 
-  const usersRef = useMemoFirebase(() => collection(db, "users"), [db]);
+  // CRITICAL: Only run the collection fetch if the user has at least Team Lead power
+  const usersRef = useMemoFirebase(() => {
+    if (!currentUser || currentRolePower < 1) return null;
+    return collection(db, "users");
+  }, [db, currentUser, currentRolePower]);
+
   const { data: users, isLoading } = useCollection<UserData>(usersRef);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -111,6 +117,7 @@ export function UserManagement() {
     if (!users) return [];
     const term = search.toLowerCase().trim();
     return users.filter(u => {
+      // Security rules will allow the fetch, but we filter for UI hierarchy
       const targetPower = ROLE_HIERARCHY[u.role] || 0;
       const isVisible = currentUser?.role === 'Super Admin' || currentRolePower > targetPower || u.id === currentUser?.id;
 
@@ -125,7 +132,7 @@ export function UserManagement() {
 
   const canManageAction = useCallback((targetRole: UserRole, targetId: string) => {
     if (!currentUser) return false;
-    if (currentUser.id === targetId) return true;
+    if (currentUser.id === targetId) return true; // Can always edit self
     return currentRolePower > ROLE_HIERARCHY[targetRole];
   }, [currentUser, currentRolePower]);
 
@@ -167,7 +174,8 @@ export function UserManagement() {
         };
         setDocumentNonBlocking(doc(db, "users", newId), userData, { merge: true });
         
-        const rolePath = `user_roles_${userData.role.replace(/\s+/g, '_').toLowerCase()}`;
+        // Track role assignment
+        const rolePath = `user_roles_${userData.role.replace(/\s+/g, '_')}`;
         setDocumentNonBlocking(doc(db, rolePath, newId), { active: true }, { merge: true });
 
         toast({ title: "User Created", description: "Profile has been deployed." });
@@ -181,9 +189,10 @@ export function UserManagement() {
           updatedAt: serverTimestamp()
         };
         
+        // Handle role change tracking
         if (selectedUser.role !== updateData.role) {
-          const oldPath = `user_roles_${selectedUser.role?.replace(/\s+/g, '_').toLowerCase()}`;
-          const newPath = `user_roles_${updateData.role.replace(/\s+/g, '_').toLowerCase()}`;
+          const oldPath = `user_roles_${selectedUser.role?.replace(/\s+/g, '_')}`;
+          const newPath = `user_roles_${updateData.role.replace(/\s+/g, '_')}`;
           deleteDocumentNonBlocking(doc(db, oldPath, selectedUser.id));
           setDocumentNonBlocking(doc(db, newPath, selectedUser.id), { active: true }, { merge: true });
         }
@@ -201,7 +210,7 @@ export function UserManagement() {
     if (!userToDelete) return;
     const target = users?.find(u => u.id === userToDelete);
     if (target) {
-      const rolePath = `user_roles_${target.role.replace(/\s+/g, '_').toLowerCase()}`;
+      const rolePath = `user_roles_${target.role.replace(/\s+/g, '_')}`;
       deleteDocumentNonBlocking(doc(db, rolePath, userToDelete));
       deleteDocumentNonBlocking(doc(db, "users", userToDelete));
       toast({ title: "User Removed", description: "Account purged." });

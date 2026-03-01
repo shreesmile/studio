@@ -30,19 +30,19 @@ export function OverviewTab() {
   const [aiInsight, setAiInsight] = useState<GeneratePerformanceInsightOutput | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
 
-  // REAL DATA: Fetch Users (Visible to those who can see the directory)
+  // CRITICAL: Fetch Users only if user profile is ready and has permission
   const usersRef = useMemoFirebase(() => {
     if (!user || user.role === 'Employee') return null;
     return collection(db, "users");
   }, [db, user]);
   const { data: usersData, isLoading: loadingUsers } = useCollection(usersRef);
 
-  // REAL DATA: Fetch Recent Activity (Tasks) - ALIGNED WITH SECURITY RULES
+  // CRITICAL: Fetch Recent Activity only if user profile is ready
   const recentTasksQuery = useMemoFirebase(() => {
     if (!user) return null;
     let q = query(collection(db, "tasks"));
 
-    // Apply the same filters as TaskManagement to avoid permission errors
+    // Apply strict filters to avoid security rule denials
     switch (user.role) {
       case 'Super Admin': break;
       case 'Admin':

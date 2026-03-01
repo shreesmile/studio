@@ -13,11 +13,11 @@ service cloud.firestore {
     }
 
     function getRoleLevel(role) {
-      let r = role.lower();
-      return r == 'super admin' ? 4 :
-             r == 'admin' ? 3 :
-             r == 'manager' ? 2 :
-             r == 'team lead' ? 1 : 0;
+      // Use exact strings to avoid case-conversion hallucinations
+      return role == 'Super Admin' ? 4 :
+             role == 'Admin' ? 3 :
+             role == 'Manager' ? 2 :
+             role == 'Team Lead' ? 1 : 0;
     }
 
     function getMyLevel() {
@@ -32,11 +32,14 @@ service cloud.firestore {
     // --- RULES ---
 
     match /users/{userId} {
+      // Allow any signed-in user to see any profile (for directory/assignments)
       allow get: if isSignedIn();
-      allow list: if isSignedIn() && getMyLevel() >= 1; // Team Lead+ can view directory
       
-      // Allow registration (self-service) or creation by superiors
-      allow create: if (isSignedIn() && isOwner(userId)) || canManageTarget(request.resource.data.role);
+      // Only Team Leads and above can list the entire directory
+      allow list: if isSignedIn() && getMyLevel() >= 1;
+      
+      // Allow creation by self (registration) or by a superior
+      allow create: if isSignedIn() && (isOwner(userId) || canManageTarget(request.resource.data.role));
       
       // Allow update if owner (but role must stay same) OR if superior
       allow update: if isSignedIn() && (
@@ -44,26 +47,33 @@ service cloud.firestore {
         canManageTarget(resource.data.role)
       );
       
+      // Only superiors can delete
       allow delete: if isSignedIn() && canManageTarget(resource.data.role);
     }
 
     match /tasks/{taskId} {
-      function myDept() {
-        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.department;
+      function myData() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       }
 
-      // Read rules aligned with the query filters in TaskManagement.tsx and OverviewTab.tsx
+      // Read rules: 
+      // 1. Admin+ sees all
+      // 2. Managers/Leads see their department
+      // 3. Employees see their own tasks
       allow read: if isSignedIn() && (
-        getMyLevel() >= 3 || // Admin+ can see all
-        (getMyLevel() >= 1 && resource.data.assignedToDepartment == myDept()) || // Manager/Lead see team
-        resource.data.assignedToId == request.auth.uid // Employee sees own
+        getMyLevel() >= 3 || 
+        (getMyLevel() >= 1 && resource.data.assignedToDepartment == myData().department) ||
+        resource.data.assignedToId == request.auth.uid ||
+        resource.data.assignedById == request.auth.uid
       );
 
+      // Create rules: Higher roles assign to lower roles
       allow create: if isSignedIn() && (
-        getMyLevel() >= 3 || // Admin+
+        getMyLevel() >= 3 || 
         (getMyLevel() >= 1 && getMyLevel() > getRoleLevel(request.resource.data.assignedToRole))
       );
 
+      // Update rules: Creator, Assignee, or Admin+
       allow update: if isSignedIn() && (
         getMyLevel() >= 3 || 
         resource.data.assignedToId == request.auth.uid ||
