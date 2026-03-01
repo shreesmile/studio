@@ -11,27 +11,56 @@ import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { OverviewTab } from "@/components/dashboard/OverviewTab";
 import { UserManagement } from "@/components/dashboard/UserManagement";
 import { TaskManagement } from "@/components/dashboard/TaskManagement";
-import { useAuth, UserRole } from "@/lib/auth-store";
+import { useAuthStore, UserRole } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, ArrowRight, Lock, LayoutDashboard } from "lucide-react";
+import { ShieldCheck, ArrowRight, Lock, LayoutDashboard, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { useUser, useFirestore, useDoc, FirebaseClientProvider } from "@/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { LoginForm } from "@/components/auth/LoginForm";
 
-export default function Home() {
-  const { user, login, isLoaded } = useAuth();
+function DashboardContent() {
+  const { user, isUserLoading } = useUser();
+  const { profile, setProfile, logout: clearStore } = useAuthStore();
+  const db = useFirestore();
   const [activeTab, setActiveTab] = useState("dashboard");
 
-  // Reset active tab if it's not allowed for the current role
+  // Sync Firebase User with Firestore Profile
   useEffect(() => {
-    if (user) {
-      if (activeTab === 'users' && !['Super Admin', 'Admin'].includes(user.role)) {
+    if (user && !profile) {
+      const fetchProfile = async () => {
+        const docRef = doc(db, "users", user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setProfile(docSnap.data() as any);
+        }
+      };
+      fetchProfile();
+    } else if (!user && profile) {
+      clearStore();
+    }
+  }, [user, profile, db, setProfile, clearStore]);
+
+  // Tab permission check
+  useEffect(() => {
+    if (profile) {
+      const adminRoles: UserRole[] = ['Super Admin', 'Admin'];
+      if (activeTab === 'users' && !adminRoles.includes(profile.role)) {
         setActiveTab('dashboard');
       }
     }
-  }, [user, activeTab]);
+  }, [profile, activeTab]);
 
-  if (!isLoaded) return <div className="flex items-center justify-center h-screen bg-background">Loading...</div>;
+  if (isUserLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-background gap-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground animate-pulse">Authenticating with RoleFlow...</p>
+      </div>
+    );
+  }
 
-  if (!user) {
+  if (!user || !profile) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 bg-[#ECF1F4]">
         <div className="max-w-md w-full space-y-8 text-center">
@@ -44,27 +73,8 @@ export default function Home() {
           </div>
 
           <div className="bg-white p-8 rounded-3xl shadow-xl border border-white space-y-6">
-            <div className="space-y-2">
-              <h2 className="text-xl font-bold text-foreground">Sign In</h2>
-              <p className="text-sm text-muted-foreground">Select a mock role to explore the system permissions</p>
-            </div>
-
-            <div className="grid gap-3">
-              {(['Super Admin', 'Admin', 'Manager', 'Team Lead', 'Employee'] as UserRole[]).map((role) => (
-                <Button 
-                  key={role}
-                  variant="outline" 
-                  onClick={() => login(role)}
-                  className="w-full justify-between h-12 group hover:border-accent hover:bg-accent/5"
-                >
-                  <span className="font-medium">{role}</span>
-                  <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </Button>
-              ))}
-            </div>
-
+            <LoginForm />
             <Separator />
-            
             <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
               <Lock className="w-3 h-3" />
               Secure Enterprise Authentication
@@ -121,7 +131,7 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <div className="text-right hidden sm:block">
                 <span className="text-[10px] font-medium text-muted-foreground">Connected as</span>
-                <span className="ml-1 text-[10px] font-bold text-accent">{user.role}</span>
+                <span className="ml-1 text-[10px] font-bold text-accent uppercase">{profile.role}</span>
               </div>
             </div>
           </header>
@@ -131,5 +141,13 @@ export default function Home() {
         </SidebarInset>
       </div>
     </SidebarProvider>
+  );
+}
+
+export default function Home() {
+  return (
+    <FirebaseClientProvider>
+      <DashboardContent />
+    </FirebaseClientProvider>
   );
 }

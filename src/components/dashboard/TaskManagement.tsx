@@ -26,7 +26,7 @@ import {
   Filter
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/lib/auth-store";
+import { useAuthStore } from "@/lib/auth-store";
 
 const mockTasks = [
   { id: '1', title: 'Security Audit', description: 'Complete annual system security review.', status: 'blocked', priority: 'high', deadline: '2024-06-15', assignedTo: 'Charlie' },
@@ -36,7 +36,7 @@ const mockTasks = [
 ];
 
 export function TaskManagement() {
-  const { user } = useAuth();
+  const { profile: user } = useAuthStore();
   const [filterStatus, setFilterStatus] = useState("all");
 
   const canCreate = user?.role !== 'Employee';

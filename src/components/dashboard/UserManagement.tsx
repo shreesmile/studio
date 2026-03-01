@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { MoreHorizontal, Plus, Search, UserPlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/lib/auth-store";
+import { useAuthStore } from "@/lib/auth-store";
 
 const mockUsers = [
   { id: '1', name: 'Alice Johnson', email: 'alice@roleflow.io', role: 'Super Admin', department: 'Management' },
@@ -33,7 +33,7 @@ const mockUsers = [
 ];
 
 export function UserManagement() {
-  const { user: currentUser } = useAuth();
+  const { profile: currentUser } = useAuthStore();
   const [search, setSearch] = useState("");
 
   const filteredUsers = mockUsers.filter(u => 

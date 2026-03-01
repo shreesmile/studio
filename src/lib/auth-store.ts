@@ -6,51 +6,43 @@ import { persist } from 'zustand/middleware';
 
 export type UserRole = 'Super Admin' | 'Admin' | 'Manager' | 'Team Lead' | 'Employee';
 
-export interface User {
+export interface UserProfile {
   id: string;
   name: string;
   email: string;
   role: UserRole;
-  department?: string;
+  departmentId?: string;
+  reportingToId?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface AuthState {
-  user: User | null;
+  profile: UserProfile | null;
   isLoaded: boolean;
-  login: (role: UserRole) => void;
-  logout: () => void;
+  setProfile: (profile: UserProfile | null) => void;
   setLoaded: (loaded: boolean) => void;
+  logout: () => void;
 }
 
 /**
  * Global authentication store using Zustand.
- * Persists the user session to localStorage and handles hydration state
- * to prevent flickering and hydration mismatches in Next.js.
+ * Synchronizes with Firebase Auth state provided by the FirebaseProvider.
  */
-export const useAuth = create<AuthState>()(
+export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      user: null,
+      profile: null,
       isLoaded: false,
-      login: (role: UserRole) => {
-        const mockUser: User = {
-          id: `u-${role.toLowerCase().replace(' ', '-')}`,
-          name: `Mock ${role}`,
-          email: `${role.toLowerCase().replace(' ', '.')}@roleflow.io`,
-          role,
-          department: 'Engineering'
-        };
-        set({ user: mockUser });
-      },
+      setProfile: (profile) => set({ profile, isLoaded: true }),
+      setLoaded: (loaded) => set({ isLoaded: loaded }),
       logout: () => {
-        set({ user: null });
+        set({ profile: null });
       },
-      setLoaded: (loaded: boolean) => set({ isLoaded: loaded }),
     }),
     {
       name: 'roleflow_auth_storage',
       onRehydrateStorage: () => (state) => {
-        // Once the store is hydrated from localStorage, we signal that the app is ready to render.
         state?.setLoaded(true);
       },
     }

@@ -18,7 +18,7 @@ import {
   TrendingUp,
   BrainCircuit
 } from "lucide-react";
-import { useAuth } from "@/lib/auth-store";
+import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { generatePerformanceInsight, GeneratePerformanceInsightOutput } from "@/ai/flows/ai-performance-insight";
 
@@ -37,7 +37,7 @@ const mockUsers = [
 ];
 
 export function OverviewTab() {
-  const { user } = useAuth();
+  const { profile: user } = useAuthStore();
   const [aiInsight, setAiInsight] = useState<GeneratePerformanceInsightOutput | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
 

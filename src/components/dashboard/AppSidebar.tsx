@@ -23,8 +23,10 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { useAuth, UserRole } from "@/lib/auth-store";
+import { useAuthStore, UserRole } from "@/lib/auth-store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/firebase";
+import { signOut } from "firebase/auth";
 
 interface NavItem {
   title: string;
@@ -64,20 +66,20 @@ const navItems: NavItem[] = [
     icon: Briefcase,
     roles: ["Super Admin"],
   },
-  {
-    id: "settings",
-    title: "Settings",
-    icon: Settings,
-    roles: ["Super Admin"],
-  },
 ];
 
 export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTabChange: (id: string) => void }) {
-  const { user, logout } = useAuth();
+  const { profile, logout: clearStore } = useAuthStore();
+  const auth = useAuth();
   const { state } = useSidebar();
 
+  const handleLogout = async () => {
+    await signOut(auth);
+    clearStore();
+  };
+
   const filteredNavItems = navItems.filter((item) =>
-    user ? item.roles.includes(user.role) : false
+    profile ? item.roles.includes(profile.role) : false
   );
 
   return (
@@ -119,18 +121,18 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10 border-2 border-muted shadow-sm">
-              <AvatarImage src={`https://picsum.photos/seed/${user?.id}/100/100`} />
-              <AvatarFallback>{user?.name.charAt(0)}</AvatarFallback>
+              <AvatarImage src={`https://picsum.photos/seed/${profile?.id}/100/100`} />
+              <AvatarFallback>{profile?.name.charAt(0)}</AvatarFallback>
             </Avatar>
             {state !== "collapsed" && (
               <div className="flex flex-col overflow-hidden">
-                <span className="text-sm font-semibold truncate text-foreground">{user?.name}</span>
-                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{user?.role}</span>
+                <span className="text-sm font-semibold truncate text-foreground">{profile?.name}</span>
+                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{profile?.role}</span>
               </div>
             )}
           </div>
           <button 
-            onClick={logout} 
+            onClick={handleLogout} 
             className="flex items-center gap-2 text-destructive font-medium text-xs hover:opacity-80 transition-opacity w-full px-1"
           >
             <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
