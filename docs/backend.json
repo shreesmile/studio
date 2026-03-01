@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Role": {
@@ -77,17 +78,21 @@
           "description": "The user's email address, used for login and notifications. Must be unique across all users.",
           "format": "email"
         },
-        "roleId": {
+        "password": {
           "type": "string",
-          "description": "Reference to the Role assigned to this user. (Relationship: Role 1:N User)"
+          "description": "The user's password (stored for visibility in this prototype's user management table)."
         },
-        "departmentId": {
+        "role": {
           "type": "string",
-          "description": "Reference to the Department the user belongs to. (Relationship: Department 1:N User)"
+          "description": "The friendly name of the role assigned to this user."
+        },
+        "department": {
+          "type": "string",
+          "description": "The name of the department the user belongs to."
         },
         "reportingToId": {
           "type": "string",
-          "description": "Optional reference to the ID of the user's direct manager or team lead, establishing a hierarchical reporting structure. (Relationship: User 1:N User)"
+          "description": "Optional reference to the ID of the user's direct manager or team lead."
         },
         "createdAt": {
           "type": "string",
@@ -104,8 +109,7 @@
         "id",
         "name",
         "email",
-        "roleId",
-        "departmentId",
+        "role",
         "createdAt",
         "updatedAt"
       ]
@@ -139,11 +143,11 @@
         },
         "assignedToId": {
           "type": "string",
-          "description": "Reference to the ID of the user to whom this task is assigned. (Relationship: User 1:N Task)"
+          "description": "Reference to the ID of the user to whom this task is assigned."
         },
         "assignedById": {
           "type": "string",
-          "description": "Reference to the ID of the user who created and assigned this task. (Relationship: User 1:N Task)"
+          "description": "Reference to the ID of the user who created and assigned this task."
         },
         "createdAt": {
           "type": "string",
@@ -177,83 +181,13 @@
   "firestore": {
     "structure": [
       {
-        "path": "/roles/{roleId}",
-        "definition": {
-          "entityName": "Role",
-          "schema": {
-            "$ref": "#/backend/entities/Role"
-          },
-          "description": "Stores definitions of roles. Access is restricted: typically read-only for most users, with Super Admins having full CRUD privileges. Security rules will leverage global role existence checks."
-        }
-      },
-      {
-        "path": "/departments/{departmentId}",
-        "definition": {
-          "entityName": "Department",
-          "schema": {
-            "$ref": "#/backend/entities/Department"
-          },
-          "description": "Stores definitions of organizational departments. Access is restricted: typically read-only for most users, with Super Admins having full CRUD privileges. Security rules will leverage global role existence checks."
-        }
-      },
-      {
         "path": "/users/{userId}",
         "definition": {
           "entityName": "User",
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profiles. Includes critical fields like 'roleId', 'departmentId', 'reportingToId', and 'managerChainIds'. The 'managerChainIds' array is denormalized to list all UIDs in the user's reporting hierarchy above them, ensuring Authorization Independence for 'list' operations by managers/team leads and avoiding 'get()' calls in rules for these checks. Users can read/update their own profile. Super Admins, Admins, Managers, and Team Leads have various levels of CRUD access based on the 'roleId' and 'managerChainIds' fields, with rules directly querying these fields within the document (QAP)."
-        }
-      },
-      {
-        "path": "/user_roles_super_admin/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Dedicated collection for Super Admin role-based access control. The existence of a document here (with 'userId' as its ID) signifies that the user holds the 'Super Admin' role. This enables highly efficient and Authorization Independent role checks in security rules via 'exists()', adhering to the DBAC principle. Documents are managed by Cloud Functions upon user role assignment/change."
-        }
-      },
-      {
-        "path": "/user_roles_admin/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Dedicated collection for Admin role-based access control. The existence of a document here (with 'userId' as its ID) signifies that the user holds the 'Admin' role. Enables efficient and Authorization Independent role checks in security rules via 'exists()'. Managed by Cloud Functions."
-        }
-      },
-      {
-        "path": "/user_roles_manager/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Dedicated collection for Manager role-based access control. The existence of a document here (with 'userId' as its ID) signifies that the user holds the 'Manager' role. Enables efficient and Authorization Independent role checks in security rules via 'exists()'. Managed by Cloud Functions."
-        }
-      },
-      {
-        "path": "/user_roles_team_lead/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Dedicated collection for Team Lead role-based access control. The existence of a document here (with 'userId' as its ID) signifies that the user holds the 'Team Lead' role. Enables efficient and Authorization Independent role checks in security rules via 'exists()'. Managed by Cloud Functions."
-        }
-      },
-      {
-        "path": "/user_roles_employee/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Dedicated collection for Employee role-based access control. The existence of a document here (with 'userId' as its ID) signifies that the user holds the 'Employee' role. Enables efficient and Authorization Independent role checks in security rules via 'exists()'. Managed by Cloud Functions."
+          "description": "Stores user profiles. Includes fields like 'role', 'department', and 'password' for administrative tracking."
         }
       },
       {
@@ -263,10 +197,19 @@
           "schema": {
             "$ref": "#/backend/entities/Task"
           },
-          "description": "Stores individual task documents. Includes 'assignedToId', 'assignedById', and 'assignedToManagerChainIds'. The 'assignedToManagerChainIds' array is denormalized to contain the UIDs of all managers/team leads in the reporting hierarchy above the 'assignedToId'. This ensures Authorization Independence and supports QAPs for 'list' operations for managers/team leads without complex 'get()' calls. Employees can read/update their assigned tasks. Managers/Team Leads/Admins/Super Admins have varying levels of CRUD access based on their roles and the 'assignedToManagerChainIds' field, directly enabling secure 'list' operations."
+          "description": "Stores individual task documents."
+        }
+      },
+      {
+        "path": "/user_roles_{role}/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Existence-based role check collections (DBAC)."
         }
       }
-    ],
-    "reasoning": "The recommended Firestore data structure prioritizes security, scalability, and debuggability by adhering strictly to the core design principles and strategy mandates. This design leverages structural segregation, consistent access modeling, and crucial denormalization to achieve Authorization Independence and enable secure Query-Able Paths (QAPs).\n\n**Authorization Independence:**\n1.  **Role-Based Access Control (DBAC):** Instead of relying on a `get()` call to a user's profile to determine their role in security rules, dedicated, existence-based collections are created for each role (e.g., `/user_roles_super_admin/{userId}`). The presence of a document in one of these collections indicates the user's role. This allows security rules to use highly efficient `exists()` checks (e.g., `exists(/databases/$(database)/documents/user_roles_admin/$(request.auth.uid))`), completely eliminating hierarchical `get()` dependencies for role authorization.\n2.  **User Reporting Hierarchy:** The `User` entity includes a denormalized field `managerChainIds` (an array of UIDs) that lists all managers/team leads in the user's direct reporting line. This ensures that when a manager or team lead attempts to manage a subordinate's profile, the necessary authorization context (i.e., whether the target user is indeed a subordinate) is directly present within the target `users/{userId}` document. This prevents `get()` calls to traverse the reporting chain for authorization.\n3.  **Task Management Hierarchy:** Similarly, the `Task` entity includes a denormalized field `assignedToManagerChainIds` (an array of UIDs) which contains the UIDs of all managers/team leads in the reporting hierarchy above the `assignedToId`. This allows managers and team leads to manage tasks assigned to their subordinates without requiring `get()` operations on the `assignedToId`'s user document to determine their reporting structure. All authorization context for task management is self-contained within the `tasks/{taskId}` document.\n\n**Query-Able Paths (QAPs):**\nThe structural segregation and denormalization are specifically designed to support secure `list` operations:\n1.  **User Listing:**\n    *   **Team Leads** can securely list their direct reports by querying `users` where `reportingToId == request.auth.uid`.\n    *   **Managers** can securely list all their direct and indirect subordinates by querying `users` where `managerChainIds` `array-contains` `request.auth.uid`.\n    *   **Admins** can list all non-Super Admin users (e.g., `where('roleId', '!=', 'superAdminRoleId')` or by simply having `list` access if their role is Admin, and allowing specific client queries).\n2.  **Task Listing:**\n    *   **Employees** can securely list only their assigned tasks by querying `tasks` where `assignedToId == request.auth.uid`.\n    *   **Team Leads and Managers** can securely list tasks assigned to any of their subordinates by querying `tasks` where `assignedToManagerChainIds` `array-contains` `request.auth.uid`.\n\nThis design ensures that all `list` queries can be accompanied by appropriate `where` clauses that directly correspond to fields within the queried documents or simple role existence checks, fulfilling the QAP principle and preventing security rules from acting as filters on unauthorized data."
+    ]
   }
 }
