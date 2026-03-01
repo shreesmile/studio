@@ -82,7 +82,7 @@ export function UserManagement() {
   const { toast } = useToast();
   const { profile: currentUser } = useAuthStore();
   const [search, setSearch] = useState("");
-  const [showPasswords, setShowPasswords] = useState(false);
+  const [showPasswords, setShowPasswords] = useState(true);
   
   const currentRolePower = ROLE_HIERARCHY[currentUser?.role || 'Employee'];
 
@@ -234,7 +234,7 @@ export function UserManagement() {
                   <TableCell>{u.department || "N/A"}</TableCell>
                   <TableCell className="text-muted-foreground">{u.email}</TableCell>
                   <TableCell className="font-mono text-xs">
-                    {showPasswords ? (u.password || "••••••••") : "••••••••"}
+                    {showPasswords ? (u.password || "N/A") : "••••••••"}
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -276,7 +276,7 @@ export function UserManagement() {
             <div className="grid gap-2">
               <Label>Password</Label>
               <Input 
-                type={modalMode === 'view' ? 'password' : 'text'} 
+                type="text" 
                 disabled={modalMode === 'view'} 
                 value={formData.password} 
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
