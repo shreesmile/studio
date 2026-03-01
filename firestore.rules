@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * FIRESTORE SECURITY RULES - STRICT HIERARCHICAL RBAC
+     * FIRESTORE SECURITY RULES - HIERARCHICAL RBAC
      */
 
     // --- GLOBAL HELPER FUNCTIONS ---
@@ -14,10 +14,6 @@ service cloud.firestore {
 
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function getRole(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role;
     }
 
     function hasRole(roleName) {
@@ -34,12 +30,19 @@ service cloud.firestore {
     function isAdmin() { return isSuperAdmin() || hasRole('Admin'); }
     function isManager() { return isAdmin() || hasRole('Manager'); }
     function isTeamLead() { return isManager() || hasRole('Team Lead'); }
-    function isEmployee() { return hasRole('Employee'); }
 
-    // Management Hierarchy Logic
-    // Validates if the request.auth.uid can perform actions on targetUserId
-    function canManageUser(targetUserId) {
-      let targetRole = get(/databases/$(database)/documents/users/$(targetUserId)).data.role;
+    // Management Hierarchy Logic for CREATE (Checks incoming data)
+    function canCreateRole(targetRole) {
+      return isSuperAdmin() || 
+             (isAdmin() && targetRole != 'Super Admin') ||
+             (isManager() && (targetRole == 'Team Lead' || targetRole == 'Employee')) ||
+             (isTeamLead() && targetRole == 'Employee');
+    }
+
+    // Management Hierarchy Logic for UPDATE/DELETE (Checks existing data)
+    function canManageExistingUser(targetUserId) {
+      let targetData = get(/databases/$(database)/documents/users/$(targetUserId)).data;
+      let targetRole = targetData.role;
       
       return isSuperAdmin() || 
              (isAdmin() && targetRole != 'Super Admin') ||
@@ -50,18 +53,19 @@ service cloud.firestore {
     // --- COLLECTION RULES ---
 
     match /users/{userId} {
-      // Users can read/write their own profile during registration (handled by LoginForm)
-      allow get: if isOwner(userId) || canManageUser(userId);
+      allow get: if isOwner(userId) || canManageExistingUser(userId);
       allow list: if isTeamLead();
       
-      allow create: if isSignedIn(); // Allow initial profile creation
-      allow update: if isOwner(userId) || canManageUser(userId);
-      allow delete: if isSuperAdmin() || (isAdmin() && getRole(userId) != 'Super Admin');
+      // Allow self-registration OR allowed hierarchy creation
+      allow create: if isOwner(userId) || canCreateRole(request.resource.data.role);
+      allow update: if isOwner(userId) || canManageExistingUser(userId);
+      allow delete: if isSuperAdmin() || (isAdmin() && canManageExistingUser(userId));
     }
 
     // Role Assignment Collections (DBAC)
     match /user_roles_super_admin/{userId} {
-      allow read, write: if isSignedIn(); // Initial setup flexibility
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) || isSuperAdmin();
     }
     match /user_roles_admin/{userId} {
       allow read: if isSignedIn();
@@ -81,16 +85,9 @@ service cloud.firestore {
     }
 
     match /tasks/{taskId} {
-      // Employees see only their tasks. Managers/Leads see tasks they assigned or assigned to their reports.
       allow read: if isSignedIn();
-      
-      // Employees cannot create tasks. Team Leads and above can.
       allow create: if isTeamLead();
-      
-      // Owners can update status. Managers can update details.
       allow update: if isOwner(resource.data.assignedToId) || isTeamLead();
-      
-      // Only Admins or the person who assigned it can delete.
       allow delete: if isAdmin() || (resource != null && resource.data.assignedById == request.auth.uid);
     }
 

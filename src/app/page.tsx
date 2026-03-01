@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   SidebarProvider, 
   SidebarInset, 
@@ -34,10 +33,13 @@ function DashboardContent() {
   useEffect(() => {
     let isMounted = true;
     
+    // Condition: We have a user, no local profile, we aren't already syncing, and we haven't failed for this UID yet.
     if (user && !profile && !isSyncing && syncAttemptedFor.current !== user.uid) {
       const fetchProfile = async () => {
+        if (!isMounted) return;
         setIsSyncing(true);
         syncAttemptedFor.current = user.uid;
+        
         try {
           const docRef = doc(db, "users", user.uid);
           const docSnap = await getDoc(docRef);
@@ -52,16 +54,17 @@ function DashboardContent() {
       };
       fetchProfile();
     } else if (!user && profile) {
+      // Clear store if logged out
       clearStore();
       syncAttemptedFor.current = null;
     }
     
     return () => { isMounted = false; };
-  }, [user, profile, db, setProfile, clearStore]);
+  }, [user, profile, db, setProfile, clearStore]); // isSyncing removed from deps to prevent loop
 
   // Tab permission check
   useEffect(() => {
-    if (profile) {
+    if (profile?.role) {
       const adminRoles: UserRole[] = ['Super Admin', 'Admin', 'Manager', 'Team Lead'];
       if (activeTab === 'users' && !adminRoles.includes(profile.role)) {
         setActiveTab('dashboard');
@@ -74,9 +77,9 @@ function DashboardContent() {
     await fetch('/api/auth/session', { method: 'POST', body: JSON.stringify({ idToken: null }) });
     clearStore();
     syncAttemptedFor.current = null;
+    window.location.reload(); // Hard refresh to clear all states
   };
 
-  // 1. Initial Auth Loading
   if (isUserLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
@@ -86,7 +89,6 @@ function DashboardContent() {
     );
   }
 
-  // 2. Authenticated but Profile Syncing (or missing)
   if (user && !profile) {
     if (isSyncing) {
       return (
@@ -97,7 +99,6 @@ function DashboardContent() {
       );
     }
     
-    // If we tried to sync and failed to find a profile
     return (
       <div className="min-h-screen bg-[#ECF1F4] flex flex-col items-center justify-center p-6 text-center">
         <div className="bg-white p-10 rounded-3xl shadow-xl max-w-md w-full space-y-6">
@@ -124,7 +125,6 @@ function DashboardContent() {
     );
   }
 
-  // 3. Not Authenticated
   if (!user) {
     return (
       <div className="min-h-screen bg-[#ECF1F4] flex flex-col items-center justify-center p-6">
@@ -152,12 +152,9 @@ function DashboardContent() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case "dashboard":
-        return <OverviewTab />;
-      case "users":
-        return <UserManagement />;
-      case "tasks":
-        return <TaskManagement />;
+      case "dashboard": return <OverviewTab />;
+      case "users": return <UserManagement />;
+      case "tasks": return <TaskManagement />;
       case "analytics":
         return (
           <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-xl border border-dashed text-muted-foreground">
@@ -165,8 +162,7 @@ function DashboardContent() {
             <p>Analytical module data is loading...</p>
           </div>
         );
-      default:
-        return <OverviewTab />;
+      default: return <OverviewTab />;
     }
   };
 
