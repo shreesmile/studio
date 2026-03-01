@@ -81,6 +81,26 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
+    match /attendance/{id} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        getMyWeight() >= 4 ||
+        (getMyWeight() >= 3 && isMyDept(resource.data.department))
+      );
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /leave_requests/{id} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        getMyWeight() >= 4 ||
+        (getMyWeight() >= 3 && isMyDept(resource.data.department))
+      );
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || getMyWeight() >= 3);
+    }
+
     match /user_roles_Super_Admin/{uid} { allow read, write: if isSignedIn() && getMyWeight() == 5; }
     match /user_roles_Admin/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 4 || request.auth.uid == uid); }
     match /user_roles_Manager/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 3 || request.auth.uid == uid); }

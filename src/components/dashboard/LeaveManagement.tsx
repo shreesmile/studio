@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from "react";
@@ -24,14 +23,13 @@ export function LeaveManagement() {
   const [newRequest, setNewRequest] = useState({ startDate: '', endDate: '', reason: '' });
 
   const leaveQuery = useMemoFirebase(() => {
-    if (!authUser) return null;
+    if (!authUser || !user) return null;
     
     let q = query(collection(db, "leave_requests"));
     
-    // Strict Guard: Prevent broad list for Employees or if profile is still loading
-    if (!user || user.role === 'Employee' || user.id !== authUser.uid) {
+    if (user.role === 'Employee') {
       q = query(q, where("userId", "==", authUser.uid));
-    } else if (['Team Lead', 'Manager'].includes(user.role) && user.department) {
+    } else if (['Team Lead', 'Manager'].includes(user.role)) {
       q = query(q, where("department", "==", user.department));
     }
     

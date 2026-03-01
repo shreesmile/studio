@@ -40,9 +40,12 @@ export function ProjectManagement() {
     if (!authUser || !user) return null;
     let q = query(collection(db, "projects"));
     
-    // Admins see all. Managers/TL/Employees see dept or assigned.
     if (user.role === 'Super Admin' || user.role === 'Admin') {
       return query(q, orderBy("createdAt", "desc"));
+    }
+    
+    if (user.role === 'Employee') {
+      return query(q, where("assignedTo", "array-contains", authUser.uid));
     }
     
     return query(q, where("department", "==", user.department), orderBy("createdAt", "desc"));
@@ -58,7 +61,7 @@ export function ProjectManagement() {
       ...newProject,
       department: user.department,
       createdBy: authUser.uid,
-      assignedTo: [], // Initially empty, can be assigned later
+      assignedTo: [],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };

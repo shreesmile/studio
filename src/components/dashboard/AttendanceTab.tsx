@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -26,13 +25,12 @@ export function AttendanceTab() {
   const [notes, setNotes] = useState("");
 
   const attendanceQuery = useMemoFirebase(() => {
-    if (!authUser) return null;
+    if (!authUser || !user) return null;
     
     let q = query(collection(db, "attendance"));
     
     // Strict Guard: Force own-data filter if user is Employee or role is not yet confirmed
-    // This matches Firestore Security Rules for 'list' operations
-    if (!user || user.role === 'Employee' || user.id !== authUser.uid) {
+    if (user.role === 'Employee') {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role)) {
       q = query(q, where("department", "==", user.department));

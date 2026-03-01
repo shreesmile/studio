@@ -26,7 +26,15 @@ export function OverviewTab() {
   const projectsQuery = useMemoFirebase(() => {
     if (!authUser || !user) return null;
     let q = query(collection(db, "projects"));
+    
     if (user.role === 'Super Admin' || user.role === 'Admin') return q;
+    
+    // Employees can only see projects they are explicitly assigned to
+    if (user.role === 'Employee') {
+      return query(q, where("assignedTo", "array-contains", authUser.uid));
+    }
+    
+    // Managers and Team Leads see departmental projects
     return query(q, where("department", "==", user.department));
   }, [db, user, authUser]);
 
@@ -35,8 +43,10 @@ export function OverviewTab() {
   const logsQuery = useMemoFirebase(() => {
     if (!authUser || !user) return null;
     let q = query(collection(db, "work_logs"));
+    
     if (user.role === 'Employee') return query(q, where("userId", "==", authUser.uid));
     if (user.role === 'Super Admin') return q;
+    
     return query(q, where("department", "==", user.department));
   }, [db, user, authUser]);
 
