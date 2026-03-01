@@ -16,11 +16,21 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function roleToLevel(role) {
+      return role == 'Super Admin' ? 100 :
+             role == 'Admin' ? 80 :
+             role == 'Manager' ? 60 :
+             role == 'Team Lead' ? 40 : 20;
+    }
+
     function hasRole(roleName) {
       return isSignedIn() && (
-        exists(/databases/$(database)/documents/user_roles_$(roleName.lower().replace(" ", "_"))/$(request.auth.uid)) ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == roleName)
+        exists(/databases/$(database)/documents/user_roles_$(roleName)/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getRole() == roleName)
       );
     }
 
@@ -29,8 +39,11 @@ service cloud.firestore {
     function isManager() { return isAdmin() || hasRole('Manager'); }
     function isTeamLead() { return isManager() || hasRole('Team Lead'); }
 
-    function getProfile() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    function canManageTarget(targetRole) {
+      let myRole = getRole();
+      let myLevel = roleToLevel(myRole);
+      let targetLevel = roleToLevel(targetRole);
+      return myLevel > targetLevel || myRole == 'Super Admin';
     }
 
     // --- COLLECTION RULES ---
@@ -39,46 +52,47 @@ service cloud.firestore {
       allow get: if isSignedIn() && (isOwner(userId) || isTeamLead());
       allow list: if isTeamLead();
       
+      // Anyone signed in can create their initial profile, 
+      // but only superiors can create others.
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow delete: if isSignedIn() && isAdmin();
+      
+      allow update: if isSignedIn() && (
+        isOwner(userId) || 
+        canManageTarget(resource.data.role)
+      );
+      
+      allow delete: if isSignedIn() && canManageTarget(resource.data.role);
     }
 
     match /tasks/{taskId} {
       function canViewTask(taskData) {
-        let profile = getProfile();
+        let myProfile = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
         return isSuperAdmin() ||
                (isAdmin() && taskData.assignedByRole != 'Super Admin') ||
-               (isManager() && taskData.assignedToDepartment == profile.department) ||
-               (isTeamLead() && taskData.assignedToDepartment == profile.department) ||
+               (isManager() && taskData.assignedToDepartment == myProfile.department) ||
+               (isTeamLead() && taskData.assignedToDepartment == myProfile.department) ||
                (taskData.assignedToId == request.auth.uid);
       }
 
       allow read: if isSignedIn() && canViewTask(resource.data);
       
-      allow create: if isSignedIn() && (
-        isSuperAdmin() || 
-        (isAdmin() && request.resource.data.assignedToRole in ['Manager', 'Team Lead', 'Employee']) ||
-        (isManager() && request.resource.data.assignedToRole in ['Team Lead', 'Employee']) ||
-        (isTeamLead() && request.resource.data.assignedToRole == 'Employee')
-      );
+      allow create: if isSignedIn() && canManageTarget(request.resource.data.assignedToRole);
       
       allow update: if isSignedIn() && (
         isSuperAdmin() || 
         (resource.data.assignedToId == request.auth.uid) || 
-        (isAdmin() && resource.data.assignedByRole != 'Super Admin') ||
-        (isTeamLead() && resource.data.assignedToDepartment == getProfile().department)
+        canManageTarget(resource.data.assignedToRole)
       );
       
-      allow delete: if isSignedIn() && (isSuperAdmin() || (isAdmin() && resource.data.assignedByRole != 'Super Admin'));
+      allow delete: if isSignedIn() && canManageTarget(resource.data.assignedToRole);
     }
 
     // Role Assignment Collections (DBAC)
-    match /user_roles_super_admin/{userId} { allow read: if isSignedIn(); allow write: if isSuperAdmin(); }
-    match /user_roles_admin/{userId} { allow read: if isSignedIn(); allow write: if isSuperAdmin(); }
-    match /user_roles_manager/{userId} { allow read: if isSignedIn(); allow write: if isAdmin(); }
-    match /user_roles_team_lead/{userId} { allow read: if isSignedIn(); allow write: if isManager(); }
-    match /user_roles_employee/{userId} { allow read: if isSignedIn(); allow write: if isTeamLead(); }
+    match /user_roles_Super_Admin/{userId} { allow read: if isSignedIn(); allow write: if isSuperAdmin(); }
+    match /user_roles_Admin/{userId} { allow read: if isSignedIn(); allow write: if isSuperAdmin(); }
+    match /user_roles_Manager/{userId} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /user_roles_Team_Lead/{userId} { allow read: if isSignedIn(); allow write: if isManager(); }
+    match /user_roles_Employee/{userId} { allow read: if isSignedIn(); allow write: if isTeamLead(); }
 
     match /roles/{roleId} { allow read: if isSignedIn(); allow write: if isSuperAdmin(); }
     match /departments/{departmentId} { allow read: if isSignedIn(); allow write: if isSuperAdmin(); }

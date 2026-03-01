@@ -129,12 +129,9 @@ export function UserManagement() {
   const canManage = useCallback((targetRole: UserRole, targetId: string) => {
     if (!currentUser) return false;
     if (currentUser.id === targetId) return true;
-    if (currentUser.role === 'Super Admin') return true;
-    if (currentUser.role === 'Admin' && targetRole !== 'Super Admin') return true;
-    if (currentUser.role === 'Manager' && (targetRole === 'Team Lead' || targetRole === 'Employee')) return true;
-    if (currentUser.role === 'Team Lead' && targetRole === 'Employee') return true;
-    return false;
-  }, [currentUser?.role, currentUser?.id]);
+    const targetPower = ROLE_HIERARCHY[targetRole] || 0;
+    return currentUser.role === 'Super Admin' || currentRolePower > targetPower;
+  }, [currentUser, currentRolePower]);
 
   const handleOpenModal = useCallback((mode: 'add' | 'edit' | 'view', user?: UserData) => {
     setModalMode(mode);
@@ -175,8 +172,8 @@ export function UserManagement() {
         };
         setDocumentNonBlocking(newDocRef, userData, { merge: true });
         
-        const roleKey = (userData.role).toLowerCase().replace(/\s+/g, '_');
-        setDocumentNonBlocking(doc(db, `user_roles_${roleKey}`, newId), { active: true }, { merge: true });
+        const rolePath = `user_roles_${userData.role.replace(/\s+/g, '_')}`;
+        setDocumentNonBlocking(doc(db, rolePath, newId), { active: true }, { merge: true });
 
         toast({ title: "User Created", description: "The profile has been added to RoleFlow." });
       } else if (modalMode === 'edit' && selectedUser?.id) {
@@ -190,10 +187,10 @@ export function UserManagement() {
         };
         
         if (selectedUser.role && selectedUser.role !== updateData.role) {
-          const oldRoleKey = selectedUser.role.toLowerCase().replace(/\s+/g, '_');
-          const newRoleKey = updateData.role.toLowerCase().replace(/\s+/g, '_');
-          deleteDocumentNonBlocking(doc(db, `user_roles_${oldRoleKey}`, selectedUser.id));
-          setDocumentNonBlocking(doc(db, `user_roles_${newRoleKey}`, selectedUser.id), { active: true }, { merge: true });
+          const oldRolePath = `user_roles_${selectedUser.role.replace(/\s+/g, '_')}`;
+          const newRolePath = `user_roles_${updateData.role.replace(/\s+/g, '_')}`;
+          deleteDocumentNonBlocking(doc(db, oldRolePath, selectedUser.id));
+          setDocumentNonBlocking(doc(db, newRolePath, selectedUser.id), { active: true }, { merge: true });
         }
 
         updateDocumentNonBlocking(doc(db, "users", selectedUser.id), updateData);
@@ -210,8 +207,8 @@ export function UserManagement() {
     
     const targetUser = users?.find(u => u.id === userToDelete);
     if (targetUser?.role) {
-      const roleKey = targetUser.role.toLowerCase().replace(/\s+/g, '_');
-      deleteDocumentNonBlocking(doc(db, `user_roles_${roleKey}`, userToDelete));
+      const rolePath = `user_roles_${targetUser.role.replace(/\s+/g, '_')}`;
+      deleteDocumentNonBlocking(doc(db, rolePath, userToDelete));
     }
 
     deleteDocumentNonBlocking(doc(db, "users", userToDelete));

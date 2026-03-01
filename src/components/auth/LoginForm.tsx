@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from "react";
@@ -60,8 +59,7 @@ export function LoginForm() {
         setDocumentNonBlocking(doc(db, "users", user.uid), profileData, { merge: true });
 
         // Create Role Assignment (Non-blocking)
-        const roleKey = role.toLowerCase().replace(/\s+/g, "_");
-        const rolePath = `user_roles_${roleKey}`;
+        const rolePath = `user_roles_${role.replace(/\s+/g, '_')}`;
         setDocumentNonBlocking(doc(db, rolePath, user.uid), { active: true }, { merge: true });
 
         toast({
