@@ -36,7 +36,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Search, UserPlus, Eye, Edit, Trash2, Loader2, ShieldAlert } from "lucide-react";
+import { MoreHorizontal, Search, UserPlus, Eye, Edit, Trash2, Loader2, ShieldAlert, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -125,21 +125,32 @@ export function UserManagement() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (modalMode === 'view') return;
+
+    if (!isAdmin) {
+      toast({
+        variant: "destructive",
+        title: "Permission Denied",
+        description: "You do not have the required administrative role to perform this action."
+      });
+      return;
+    }
     
     try {
       if (modalMode === 'add') {
         const newId = doc(collection(db, "users")).id;
         const newDocRef = doc(db, "users", newId);
         
-        setDocumentNonBlocking(newDocRef, {
+        const userData = {
           ...formData,
           id: newId,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           managerChainIds: []
-        }, { merge: true });
+        };
 
-        // Also update role existence for RBAC rules
+        setDocumentNonBlocking(newDocRef, userData, { merge: true });
+
+        // Update role existence for RBAC rules
         const roleKey = formData.role?.toLowerCase().replace(/\s+/g, '_') || 'employee';
         const roleRef = doc(db, `user_roles_${roleKey}`, newId);
         setDocumentNonBlocking(roleRef, { active: true }, { merge: true });
@@ -179,6 +190,13 @@ export function UserManagement() {
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
+      {!isAdmin && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center gap-3 text-amber-800 text-sm">
+          <AlertTriangle className="h-5 w-5 text-amber-600" />
+          <p>Your current role (<strong>{currentUser?.role}</strong>) has limited administrative access. Contact a Super Admin to upgrade your permissions.</p>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

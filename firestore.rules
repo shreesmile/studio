@@ -17,13 +17,14 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Role Checks (DBAC Pattern with QAP Fallback)
-    // We check for document existence (fast) or fallback to getting the user profile (slower but resilient).
+    // Role Checks (DBAC Pattern with Profile Fallback)
+    // We check for document existence in role collections OR fallback to the role field in the user profile.
     function hasRole(roleName) {
       let roleDoc = roleName.lower().replace(" ", "_");
       return isSignedIn() && (
         exists(/databases/$(database)/documents/user_roles_$(roleDoc)/$(request.auth.uid)) ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == roleName
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == roleName)
       );
     }
 
@@ -32,50 +33,41 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return hasRole('Admin') || isSuperAdmin();
+      return isSuperAdmin() || hasRole('Admin');
     }
 
     function isManager() {
-      return hasRole('Manager') || isAdmin();
+      return isAdmin() || hasRole('Manager');
     }
 
     function isTeamLead() {
-      return hasRole('Team Lead') || isManager();
-    }
-
-    // Hierarchy Checks
-    function isSubordinate(managerChain) {
-      return isSignedIn() && request.auth.uid in managerChain;
-    }
-
-    function isHigherAuthority() {
-      return isAdmin();
+      return isManager() || hasRole('Team Lead');
     }
 
     // --- COLLECTION RULES ---
 
     match /roles/{roleId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isSuperAdmin();
+      allow write: if isSuperAdmin();
     }
 
     match /departments/{departmentId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isSuperAdmin();
+      allow write: if isSuperAdmin();
     }
 
     match /users/{userId} {
-      // Allow read if owner, admin, or manager of this user
-      allow get: if isOwner(userId) || isHigherAuthority() || (resource != null && resource.data.get('managerChainIds', []) != null && isSubordinate(resource.data.managerChainIds));
+      // Allow user to read/create/update their OWN profile
+      // Allow Admins to manage ALL profiles
+      allow get: if isOwner(userId) || isAdmin();
       allow list: if isSignedIn();
-      
-      // Allow creation/update if owner or admin
-      allow create, update: if isOwner(userId) || isHigherAuthority();
-      
+      allow create, update: if isOwner(userId) || isAdmin();
       allow delete: if isSuperAdmin();
     }
 
     // Role Assignment Collections (DBAC)
+    // Allow users to write their OWN role document (essential for registration)
+    // Allow Admins to manage others' roles
     match /user_roles_super_admin/{userId} {
       allow read: if isSignedIn();
       allow write: if isOwner(userId) || isSuperAdmin(); 
@@ -98,15 +90,10 @@ service cloud.firestore {
     }
 
     match /tasks/{taskId} {
-      function canManageTask() {
-        return isAdmin() || (resource != null && resource.data.get('assignedToManagerChainIds', []) != null && isSubordinate(resource.data.assignedToManagerChainIds)) || (resource != null && resource.data.assignedById == request.auth.uid);
-      }
-
-      allow get: if isSignedIn() && (resource != null && (resource.data.assignedToId == request.auth.uid || canManageTask()));
-      allow list: if isSignedIn();
+      allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (resource != null && (resource.data.assignedToId == request.auth.uid || canManageTask()));
-      allow delete: if isSignedIn() && (resource != null && (isAdmin() || resource.data.assignedById == request.auth.uid));
+      allow update: if isSignedIn();
+      allow delete: if isAdmin() || (resource != null && resource.data.assignedById == request.auth.uid);
     }
   }
 }
