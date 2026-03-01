@@ -9,7 +9,8 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function getWeight(role) {
+    // Explicit Level System (MNC Compliance)
+    function getLevel(role) {
       return role == 'Super Admin' ? 5 :
              role == 'Admin' ? 4 :
              role == 'Manager' ? 3 :
@@ -22,11 +23,11 @@ service cloud.firestore {
 
     function getMyWeight() {
       let myData = getUserData(request.auth.uid);
-      return myData != null ? getWeight(myData.role) : 0;
+      return myData != null ? getLevel(myData.role) : 0;
     }
 
     function isSuperior(targetRole) {
-      return getMyWeight() > getWeight(targetRole);
+      return getMyWeight() > getLevel(targetRole);
     }
 
     // --- RULES ---
@@ -48,13 +49,6 @@ service cloud.firestore {
       
       allow delete: if isSignedIn() && isSuperior(resource.data.role);
     }
-
-    // Role Existence Markers
-    match /user_roles_Super_Admin/{uid} { allow read, write: if isSignedIn() && getMyWeight() == 5; }
-    match /user_roles_Admin/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 4 || request.auth.uid == uid); }
-    match /user_roles_Manager/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 3 || request.auth.uid == uid); }
-    match /user_roles_Team_Lead/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 2 || request.auth.uid == uid); }
-    match /user_roles_Employee/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 2 || request.auth.uid == uid); }
 
     // Attendance Records
     match /attendance/{attendanceId} {
@@ -111,5 +105,12 @@ service cloud.firestore {
       
       allow delete: if isSignedIn() && isSuperior(resource.data.assignedToRole);
     }
+
+    // Internal Role Markers (Existence based permission helpers)
+    match /user_roles_Super_Admin/{uid} { allow read, write: if isSignedIn() && getMyWeight() == 5; }
+    match /user_roles_Admin/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 4 || request.auth.uid == uid); }
+    match /user_roles_Manager/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 3 || request.auth.uid == uid); }
+    match /user_roles_Team_Lead/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 2 || request.auth.uid == uid); }
+    match /user_roles_Employee/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 2 || request.auth.uid == uid); }
   }
 }

@@ -1,14 +1,14 @@
 
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { collection, query, where, doc, orderBy, limit, serverTimestamp } from "firebase/firestore";
-import { Clock, LogIn, LogOut, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Clock, LogIn, LogOut, CheckCircle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 
 export function AttendanceTab() {
@@ -133,7 +133,7 @@ export function AttendanceTab() {
                         <td className="px-4 py-3 font-semibold">{rec.userName}</td>
                         <td className="px-4 py-3 text-muted-foreground">{rec.date}</td>
                         <td className="px-4 py-3 font-mono">
-                          {format(new Date(rec.clockIn), "HH:mm")} - {rec.clockOut ? format(new Date(rec.clockOut), "HH:mm") : "--:--"}
+                          {rec.clockIn ? format(new Date(rec.clockIn), "HH:mm") : "--:--"} - {rec.clockOut ? format(new Date(rec.clockOut), "HH:mm") : "--:--"}
                         </td>
                         <td className="px-4 py-3">{rec.totalHours ? `${rec.totalHours}h` : "In Progress"}</td>
                         <td className="px-4 py-3 text-right">

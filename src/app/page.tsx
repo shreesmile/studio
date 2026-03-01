@@ -7,13 +7,14 @@ import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { OverviewTab } from "@/components/dashboard/OverviewTab";
 import { UserManagement } from "@/components/dashboard/UserManagement";
 import { AttendanceTab } from "@/components/dashboard/AttendanceTab";
+import { LeaveManagement } from "@/components/dashboard/LeaveManagement";
+import { TaskManagement } from "@/components/dashboard/TaskManagement";
 import { useAuthStore } from "@/lib/auth-store";
-import { ShieldCheck, Lock, Loader2, LogOut, RefreshCcw } from "lucide-react";
+import { ShieldCheck, Lock, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useUser, useFirestore, FirebaseClientProvider, useAuth } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { LoginForm } from "@/components/auth/LoginForm";
-import { Button } from "@/components/ui/button";
 import { signOut } from "firebase/auth";
 
 function DashboardContent() {
@@ -47,21 +48,13 @@ function DashboardContent() {
       fetchProfile();
     }
     return () => { isMounted = false; };
-  }, [user, profile, db, setProfile]);
-
-  const handleManualLogout = async () => {
-    await signOut(auth);
-    await fetch('/api/auth/session', { method: 'POST', body: JSON.stringify({ idToken: null }) });
-    clearStore();
-    syncAttemptedFor.current = null;
-    window.location.reload();
-  };
+  }, [user, profile, db, setProfile, isSyncing]);
 
   if (isUserLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-sm font-semibold text-muted-foreground uppercase tracking-widest text-[10px]">Validating Credentials</p>
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Validating Credentials</p>
       </div>
     );
   }
@@ -103,7 +96,9 @@ function DashboardContent() {
     switch (activeTab) {
       case "dashboard": return <OverviewTab />;
       case "attendance": return <AttendanceTab />;
+      case "leave": return <LeaveManagement />;
       case "users": return <UserManagement />;
+      case "tasks": return <TaskManagement />;
       default: return <OverviewTab />;
     }
   };
@@ -112,7 +107,9 @@ function DashboardContent() {
     switch (activeTab) {
       case "dashboard": return "Operational Overview";
       case "attendance": return "Attendance Tracker";
+      case "leave": return "Absence Control";
       case "users": return "Strategic Directory";
+      case "tasks": return "Workflow Engine";
       default: return "Enterprise Dashboard";
     }
   };

@@ -1,13 +1,13 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Clock, Users, CalendarCheck, TrendingUp, Sparkles, BrainCircuit, Loader2 } from "lucide-react";
+import { Clock, Users, CalendarCheck, TrendingUp, Sparkles, BrainCircuit } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit, where } from "firebase/firestore";
+import { collection, query, where, limit } from "firebase/firestore";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 
@@ -19,13 +19,19 @@ export function OverviewTab() {
   const attendanceQuery = useMemoFirebase(() => {
     if (!user) return null;
     let q = query(collection(db, "attendance"), where("date", "==", today));
-    if (user.role === 'Employee') q = query(q, where("userId", "==", user.id));
-    else if (user.role === 'Team Lead' || user.role === 'Manager') q = query(q, where("department", "==", user.department));
+    
+    // Strict scoping for Employee to prevent permission errors
+    if (user.role === 'Employee') {
+      q = query(q, where("userId", "==", user.id));
+    } else if (user.role === 'Team Lead' || user.role === 'Manager') {
+      q = query(q, where("department", "==", user.department));
+    }
     return q;
   }, [db, user, today]);
 
   const { data: todayAttendance, isLoading: loadingAtt } = useCollection(attendanceQuery);
 
+  // Guarded query for users - only for Team Lead and above
   const usersQuery = useMemoFirebase(() => {
     if (!user || user.role === 'Employee') return null;
     return query(collection(db, "users"), limit(100));
@@ -59,7 +65,7 @@ export function OverviewTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-[9px] font-bold text-muted-foreground uppercase">{user?.department} Unit</div>
+            <div className="text-[9px] font-bold text-muted-foreground uppercase">{user?.department || "N/A"} Unit</div>
           </CardContent>
         </Card>
 
@@ -100,7 +106,7 @@ export function OverviewTab() {
                     <div className={`w-2 h-2 rounded-full ${att.clockOut ? 'bg-gray-400' : 'bg-green-500 animate-pulse'}`} />
                     <div>
                       <p className="text-xs font-bold text-foreground">{att.userName}</p>
-                      <p className="text-[9px] text-muted-foreground uppercase font-medium">{att.department} • Clocked at {format(new Date(att.clockIn), "HH:mm")}</p>
+                      <p className="text-[9px] text-muted-foreground uppercase font-medium">{att.department} • Clocked at {att.clockIn ? format(new Date(att.clockIn), "HH:mm") : "--:--"}</p>
                     </div>
                   </div>
                   <Badge variant={att.status === 'Late' ? 'destructive' : 'secondary'} className="text-[8px] font-black tracking-widest uppercase">
@@ -126,7 +132,7 @@ export function OverviewTab() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-[11px] text-muted-foreground leading-relaxed italic">
-              "System analysis indicates high engagement in the {user?.department} unit. Recommendations: Adjust break schedules for optimized output."
+              "System analysis indicates high engagement in the {user?.department || "general"} unit. Recommendations: Adjust break schedules for optimized output."
             </p>
             <Button variant="outline" size="sm" className="w-full text-[9px] font-black uppercase tracking-widest border-accent/20 text-accent hover:bg-accent/10">
               Refresh Neural Context
