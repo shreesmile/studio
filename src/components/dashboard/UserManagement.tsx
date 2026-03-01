@@ -87,10 +87,8 @@ export function UserManagement() {
     ROLE_HIERARCHY[currentUser?.role || 'Employee'], 
   [currentUser?.role]);
 
-  const isAdmin = useCallback(() => {
-    if (!currentUser) return false;
-    return currentUser.role === 'Super Admin' || currentUser.role === 'Admin';
-  }, [currentUser?.role]);
+  // UI Helper for JSX permission checks
+  const isAdminUser = currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
 
   // Firestore Data - Memoized
   const usersRef = useMemoFirebase(() => collection(db, "users"), [db]);
@@ -249,7 +247,7 @@ export function UserManagement() {
             {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
         </div>
-        {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
+        {isAdminUser && (
           <Button onClick={() => handleOpenModal('add')} className="bg-primary">
             <UserPlus className="mr-2 h-4 w-4" />
             Add User
@@ -277,7 +275,7 @@ export function UserManagement() {
             ) : (
               filteredUsers.map((u) => (
                 <TableRow key={u.id}>
-                  <TableCell className="font-medium">{u.name}</TableCell>
+                  <TableCell className="font-medium">{u.name || "Anonymous"}</TableCell>
                   <TableCell><Badge variant={u.role === 'Super Admin' ? 'destructive' : 'secondary'} className="text-[10px] py-0">{u.role}</Badge></TableCell>
                   <TableCell>{u.department || "General"}</TableCell>
                   <TableCell className="text-muted-foreground">{u.email}</TableCell>
@@ -347,7 +345,7 @@ export function UserManagement() {
             <div className="grid gap-2">
               <Label htmlFor="u-role">Assign Role</Label>
               <Select 
-                disabled={modalMode === 'view' || (!isAdmin() && currentUser?.id !== selectedUser?.id)} 
+                disabled={modalMode === 'view' || (!isAdminUser && currentUser?.id !== selectedUser?.id)} 
                 value={formData.role || 'Employee'} 
                 onValueChange={(val: UserRole) => setFormData({ ...formData, role: val })}
               >

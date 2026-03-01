@@ -17,10 +17,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Corrected role check using standard CEL string functions: .lower() and .replace()
+    // Corrected role check using standard CEL string function: .toLower()
     function hasRole(roleName) {
       return isSignedIn() && (
-        exists(/databases/$(database)/documents/user_roles_$(roleName.lower().replace(" ", "_"))/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/user_roles_$(roleName.toLower().replace(" ", "_"))/$(request.auth.uid)) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == roleName)
       );
