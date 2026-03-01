@@ -81,7 +81,7 @@ export function UserManagement() {
   const { toast } = useToast();
   const { profile: currentUser } = useAuthStore();
   const [search, setSearch] = useState("");
-  const [showPasswords, setShowPasswords] = useState(true);
+  const [showPasswords, setShowPasswords] = useState(false);
   
   const currentRolePower = useMemo(() => 
     ROLE_HIERARCHY[currentUser?.role || 'Employee'], 
@@ -98,7 +98,7 @@ export function UserManagement() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
-  // Ensure initial state has no undefined properties to prevent uncontrolled warnings
+  // Initial form state
   const [formData, setFormData] = useState<UserData>({
     id: '',
     name: '',
@@ -117,22 +117,23 @@ export function UserManagement() {
       const email = (u.email || "").toLowerCase();
       
       const targetPower = ROLE_HIERARCHY[u.role] || 0;
-      const isVisible = currentUser?.role === 'Super Admin' || currentRolePower >= targetPower;
+      const isVisible = currentUser?.role === 'Super Admin' || currentRolePower > targetPower || u.id === currentUser?.id;
 
       if (!isVisible) return false;
       if (!term) return true;
       
       return name.includes(term) || role.includes(term) || email.includes(term);
     });
-  }, [users, search, currentUser?.role, currentRolePower]);
+  }, [users, search, currentUser?.role, currentRolePower, currentUser?.id]);
 
-  const canManage = useCallback((targetRole: UserRole) => {
+  const canManage = useCallback((targetRole: UserRole, targetId: string) => {
+    if (currentUser?.id === targetId) return true;
     if (currentUser?.role === 'Super Admin') return true;
     if (currentUser?.role === 'Admin' && targetRole !== 'Super Admin') return true;
     if (currentUser?.role === 'Manager' && (targetRole === 'Team Lead' || targetRole === 'Employee')) return true;
     if (currentUser?.role === 'Team Lead' && targetRole === 'Employee') return true;
     return false;
-  }, [currentUser?.role]);
+  }, [currentUser?.role, currentUser?.id]);
 
   const handleOpenModal = useCallback((mode: 'add' | 'edit' | 'view', user?: UserData) => {
     setModalMode(mode);
@@ -163,7 +164,7 @@ export function UserManagement() {
         const newDocRef = doc(db, "users", newId);
         const userData = { 
           id: newId,
-          name: formData.name || 'Unknown User',
+          name: formData.name || 'New User',
           email: formData.email || '',
           role: formData.role || 'Employee',
           department: formData.department || 'General',
@@ -173,18 +174,18 @@ export function UserManagement() {
         };
         setDocumentNonBlocking(newDocRef, userData, { merge: true });
         
-        // Sync role assignment
+        // Sync role assignment (DBAC)
         const roleKey = (userData.role).toLowerCase().replace(/\s+/g, '_');
         setDocumentNonBlocking(doc(db, `user_roles_${roleKey}`, newId), { active: true }, { merge: true });
 
         toast({ title: "User Created", description: "The profile has been added to RoleFlow." });
       } else if (modalMode === 'edit' && selectedUser?.id) {
         const updateData = {
-          name: formData.name || selectedUser.name || '',
-          email: formData.email || selectedUser.email || '',
-          role: formData.role || selectedUser.role || 'Employee',
-          department: formData.department || selectedUser.department || 'General',
-          password: formData.password || selectedUser.password || '',
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+          department: formData.department,
+          password: formData.password,
           updatedAt: serverTimestamp()
         };
         
@@ -201,7 +202,7 @@ export function UserManagement() {
       }
       setIsModalOpen(false);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Action Failed", description: error.message });
+      console.error(error);
     }
   };
 
@@ -228,7 +229,7 @@ export function UserManagement() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
               placeholder="Search team..." 
-              className="pl-9 bg-white focus-visible:ring-1"
+              className="pl-9 bg-white"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -243,7 +244,7 @@ export function UserManagement() {
           </Button>
         </div>
         {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (
-          <Button onClick={() => handleOpenModal('add')} className="bg-primary hover:opacity-90">
+          <Button onClick={() => handleOpenModal('add')} className="bg-primary">
             <UserPlus className="mr-2 h-4 w-4" />
             Add User
           </Button>
@@ -266,10 +267,10 @@ export function UserManagement() {
             {isLoading ? (
               <TableRow><TableCell colSpan={6} className="h-32 text-center"><Loader2 className="h-6 w-6 animate-spin inline-block text-primary/40" /></TableCell></TableRow>
             ) : filteredUsers.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No authorized users found.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No users found or unauthorized to view.</TableCell></TableRow>
             ) : (
               filteredUsers.map((u) => (
-                <TableRow key={u.id} className="transition-colors">
+                <TableRow key={u.id}>
                   <TableCell className="font-medium">{u.name}</TableCell>
                   <TableCell><Badge variant={u.role === 'Super Admin' ? 'destructive' : 'secondary'} className="text-[10px] py-0">{u.role}</Badge></TableCell>
                   <TableCell>{u.department || "General"}</TableCell>
@@ -284,10 +285,10 @@ export function UserManagement() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleOpenModal('view', u)}><Eye className="mr-2 h-4 w-4" /> View</DropdownMenuItem>
-                        {canManage(u.role) && (
+                        {canManage(u.role, u.id) && (
                           <DropdownMenuItem onClick={() => handleOpenModal('edit', u)}><Edit className="mr-2 h-4 w-4" /> Edit</DropdownMenuItem>
                         )}
-                        {canManage(u.role) && (
+                        {canManage(u.role, u.id) && currentUser?.id !== u.id && (
                           <DropdownMenuItem className="text-destructive" onClick={() => { setUserToDelete(u.id); setIsDeleteDialogOpen(true); }}><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
@@ -303,7 +304,7 @@ export function UserManagement() {
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="tracking-tight">{modalMode.toUpperCase()} USER PROFILE</DialogTitle>
+            <DialogTitle>{modalMode.toUpperCase()} USER PROFILE</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 py-2">
             <div className="grid gap-2">
@@ -340,14 +341,14 @@ export function UserManagement() {
             <div className="grid gap-2">
               <Label htmlFor="u-role">Assign Role</Label>
               <Select 
-                disabled={modalMode === 'view' || (currentUser?.role !== 'Super Admin' && currentUser?.role !== 'Admin')} 
+                disabled={modalMode === 'view' || (!isAdmin() && currentUser?.id !== selectedUser?.id)} 
                 value={formData.role || 'Employee'} 
                 onValueChange={(val: UserRole) => setFormData({ ...formData, role: val })}
               >
                 <SelectTrigger id="u-role"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.keys(ROLE_HIERARCHY).map(r => (
-                    <SelectItem key={r} value={r} disabled={ROLE_HIERARCHY[r as UserRole] > currentRolePower}>
+                    <SelectItem key={r} value={r} disabled={ROLE_HIERARCHY[r as UserRole] > currentRolePower && currentUser?.role !== 'Super Admin'}>
                       {r}
                     </SelectItem>
                   ))}
@@ -365,7 +366,7 @@ export function UserManagement() {
               />
             </div>
             <DialogFooter className="pt-4">
-              {modalMode !== 'view' && <Button type="submit" className="w-full sm:w-auto">Save Profile</Button>}
+              {modalMode !== 'view' && <Button type="submit" className="w-full">Save Changes</Button>}
             </DialogFooter>
           </form>
         </DialogContent>
@@ -375,11 +376,11 @@ export function UserManagement() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Removal</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently remove the user from the organization hierarchy and revoke all access.</AlertDialogDescription>
+            <AlertDialogDescription>This will permanently remove the user and revoke all access. This action cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">Delete Account</AlertDialogAction>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90 text-white">Delete Account</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
