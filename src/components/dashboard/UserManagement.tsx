@@ -63,8 +63,8 @@ interface UserData {
   name: string;
   email: string;
   role: UserRole;
-  department?: string;
-  password?: string;
+  department: string;
+  password: string;
   createdAt?: any;
 }
 
@@ -98,12 +98,13 @@ export function UserManagement() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
-  // Use defined defaults to prevent React uncontrolled to controlled input warnings
-  const [formData, setFormData] = useState<Partial<UserData>>({
+  // Ensure initial state has no undefined properties to prevent uncontrolled warnings
+  const [formData, setFormData] = useState<UserData>({
+    id: '',
     name: '',
     email: '',
     role: 'Employee',
-    department: '',
+    department: 'General',
     password: ''
   });
 
@@ -137,15 +138,16 @@ export function UserManagement() {
     setModalMode(mode);
     if (user) {
       setFormData({
+        id: user.id || '',
         name: user.name || '',
         email: user.email || '',
         role: user.role || 'Employee',
-        department: user.department || '',
+        department: user.department || 'General',
         password: user.password || ''
       });
       setSelectedUser(user);
     } else {
-      setFormData({ name: '', email: '', role: 'Employee', department: '', password: '' });
+      setFormData({ id: '', name: '', email: '', role: 'Employee', department: 'General', password: '' });
       setSelectedUser(null);
     }
     setIsModalOpen(true);
@@ -161,31 +163,32 @@ export function UserManagement() {
         const newDocRef = doc(db, "users", newId);
         const userData = { 
           id: newId,
-          name: formData.name || '',
+          name: formData.name || 'Unknown User',
           email: formData.email || '',
           role: formData.role || 'Employee',
-          department: formData.department || '',
+          department: formData.department || 'General',
           password: formData.password || '',
           createdAt: serverTimestamp(), 
           updatedAt: serverTimestamp() 
         };
         setDocumentNonBlocking(newDocRef, userData, { merge: true });
         
+        // Sync role assignment
         const roleKey = (userData.role).toLowerCase().replace(/\s+/g, '_');
         setDocumentNonBlocking(doc(db, `user_roles_${roleKey}`, newId), { active: true }, { merge: true });
 
         toast({ title: "User Created", description: "The profile has been added to RoleFlow." });
       } else if (modalMode === 'edit' && selectedUser?.id) {
         const updateData = {
-          name: formData.name || '',
-          email: formData.email || '',
-          role: formData.role || 'Employee',
-          department: formData.department || '',
-          password: formData.password || '',
+          name: formData.name || selectedUser.name || '',
+          email: formData.email || selectedUser.email || '',
+          role: formData.role || selectedUser.role || 'Employee',
+          department: formData.department || selectedUser.department || 'General',
+          password: formData.password || selectedUser.password || '',
           updatedAt: serverTimestamp()
         };
         
-        // Sync role change in DBAC collections
+        // Sync role change in DBAC collections if role updated
         if (selectedUser.role && selectedUser.role !== updateData.role) {
           const oldRoleKey = selectedUser.role.toLowerCase().replace(/\s+/g, '_');
           const newRoleKey = updateData.role.toLowerCase().replace(/\s+/g, '_');
@@ -205,7 +208,6 @@ export function UserManagement() {
   const confirmDelete = () => {
     if (!userToDelete) return;
     
-    // Also clean up role collection
     const targetUser = users?.find(u => u.id === userToDelete);
     if (targetUser?.role) {
       const roleKey = targetUser.role.toLowerCase().replace(/\s+/g, '_');
@@ -270,7 +272,7 @@ export function UserManagement() {
                 <TableRow key={u.id} className="transition-colors">
                   <TableCell className="font-medium">{u.name}</TableCell>
                   <TableCell><Badge variant={u.role === 'Super Admin' ? 'destructive' : 'secondary'} className="text-[10px] py-0">{u.role}</Badge></TableCell>
-                  <TableCell>{u.department || "N/A"}</TableCell>
+                  <TableCell>{u.department || "General"}</TableCell>
                   <TableCell className="text-muted-foreground">{u.email}</TableCell>
                   <TableCell className="font-mono text-xs">
                     {showPasswords ? (u.password || "N/A") : "••••••••"}
@@ -306,11 +308,23 @@ export function UserManagement() {
           <form onSubmit={handleSubmit} className="space-y-4 py-2">
             <div className="grid gap-2">
               <Label htmlFor="u-name">Full Name</Label>
-              <Input id="u-name" disabled={modalMode === 'view'} value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+              <Input 
+                id="u-name" 
+                disabled={modalMode === 'view'} 
+                value={formData.name || ''} 
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })} 
+                required
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="u-email">Email</Label>
-              <Input id="u-email" disabled={modalMode !== 'add'} value={formData.email || ''} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+              <Input 
+                id="u-email" 
+                disabled={modalMode !== 'add'} 
+                value={formData.email || ''} 
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })} 
+                required
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="u-pass">Password</Label>
@@ -320,6 +334,7 @@ export function UserManagement() {
                 disabled={modalMode === 'view'} 
                 value={formData.password || ''} 
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
+                required
               />
             </div>
             <div className="grid gap-2">
@@ -341,7 +356,13 @@ export function UserManagement() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="u-dept">Department</Label>
-              <Input id="u-dept" disabled={modalMode === 'view'} value={formData.department || ''} onChange={(e) => setFormData({ ...formData, department: e.target.value })} />
+              <Input 
+                id="u-dept" 
+                disabled={modalMode === 'view'} 
+                value={formData.department || ''} 
+                onChange={(e) => setFormData({ ...formData, department: e.target.value })} 
+                required
+              />
             </div>
             <DialogFooter className="pt-4">
               {modalMode !== 'view' && <Button type="submit" className="w-full sm:w-auto">Save Profile</Button>}

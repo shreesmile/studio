@@ -75,12 +75,12 @@
         },
         "email": {
           "type": "string",
-          "description": "The user's email address, used for login and notifications. Must be unique across all users.",
+          "description": "The user's email address, used for login and notifications.",
           "format": "email"
         },
         "password": {
           "type": "string",
-          "description": "The user's password (stored for visibility in this prototype's user management table)."
+          "description": "The user's password (stored for visibility in this prototype's management table)."
         },
         "role": {
           "type": "string",
@@ -92,16 +92,16 @@
         },
         "reportingToId": {
           "type": "string",
-          "description": "Optional reference to the ID of the user's direct manager or team lead."
+          "description": "Optional reference to the ID of the user's direct manager."
         },
         "createdAt": {
           "type": "string",
-          "description": "Timestamp indicating when the user account was created.",
+          "description": "Timestamp indicating when the account was created.",
           "format": "date-time"
         },
         "updatedAt": {
           "type": "string",
-          "description": "Timestamp indicating when the user account was last updated.",
+          "description": "Timestamp indicating when the account was last updated.",
           "format": "date-time"
         }
       },
@@ -120,11 +120,11 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Task",
       "type": "object",
-      "description": "Represents a specific task that can be assigned, tracked, and managed within the application.",
+      "description": "Represents a specific task that can be assigned, tracked, and managed.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the Task entity."
+          "description": "Unique identifier for the Task."
         },
         "title": {
           "type": "string",
@@ -132,33 +132,33 @@
         },
         "description": {
           "type": "string",
-          "description": "A detailed explanation of the task, including objectives and requirements."
+          "description": "A detailed explanation of the task."
         },
         "status": {
           "type": "string",
-          "description": "The current status of the task (e.g., 'Pending', 'In Progress', 'Completed', 'On Hold')."
+          "description": "The current status (e.g., 'Pending', 'In Progress', 'Completed')."
         },
         "deadline": {
           "type": "string",
-          "description": "The target date and time by which the task is expected to be completed.",
+          "description": "Target completion date.",
           "format": "date-time"
         },
         "assignedToId": {
           "type": "string",
-          "description": "Reference to the ID of the user to whom this task is assigned."
+          "description": "ID of the user assigned to this task."
         },
         "assignedById": {
           "type": "string",
-          "description": "Reference to the ID of the user who created and assigned this task."
+          "description": "ID of the user who assigned this task."
         },
         "createdAt": {
           "type": "string",
-          "description": "Timestamp indicating when the task was created.",
+          "description": "Creation timestamp.",
           "format": "date-time"
         },
         "updatedAt": {
           "type": "string",
-          "description": "Timestamp indicating when the task was last updated.",
+          "description": "Update timestamp.",
           "format": "date-time"
         }
       },
@@ -189,7 +189,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profiles. Includes fields like 'role', 'department', and 'password' for administrative tracking."
+          "description": "Stores user profiles."
         }
       },
       {
@@ -199,7 +199,7 @@
           "schema": {
             "$ref": "#/backend/entities/Task"
           },
-          "description": "Stores individual task documents."
+          "description": "Stores task documents."
         }
       },
       {
@@ -209,7 +209,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Existence-based role check collections (DBAC)."
+          "description": "Existence-based role check collections."
         }
       }
     ]

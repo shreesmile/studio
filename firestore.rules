@@ -18,7 +18,8 @@ service cloud.firestore {
     }
 
     function hasRole(roleName) {
-      let roleKey = roleName.toLower().replace(" ", "_");
+      // NOTE: Use .lower() in Firestore Rules (CEL), not .toLower()
+      let roleKey = roleName.lower().replace(" ", "_");
       return isSignedIn() && (
         exists(/databases/$(database)/documents/user_roles_$(roleKey)/$(request.auth.uid)) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
@@ -41,11 +42,12 @@ service cloud.firestore {
 
     // Hierarchy Logic for Management (Optimized for Updates)
     function canManageTarget(targetData) {
+      let role = targetData.get('role', 'Employee');
       return isSuperAdmin() || 
              (targetData != null && (
-               (isAdmin() && targetData.get('role', 'Employee') != 'Super Admin') ||
-               (isManager() && (targetData.get('role', 'Employee') == 'Team Lead' || targetData.get('role', 'Employee') == 'Employee')) ||
-               (isTeamLead() && targetData.get('role', 'Employee') == 'Employee')
+               (isAdmin() && role != 'Super Admin') ||
+               (isManager() && (role == 'Team Lead' || role == 'Employee')) ||
+               (isTeamLead() && role == 'Employee')
              ));
     }
 
