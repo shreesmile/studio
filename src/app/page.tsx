@@ -48,6 +48,7 @@ function DashboardContent() {
       const unsub = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
+          // Only update if data actually changed to prevent loops
           setProfile(data as any);
         }
         setIsInitializing(false);

@@ -17,7 +17,7 @@ export function AttendanceTab() {
   const today = format(new Date(), "yyyy-MM-dd");
 
   const attendanceQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!user || !user.role) return null;
     let q = query(collection(db, "attendance"));
     
     // Employee sees own, Team Lead/Manager sees department, Admin+ sees all
@@ -27,7 +27,8 @@ export function AttendanceTab() {
       q = query(q, where("department", "==", user.department));
     }
     
-    return query(q, orderBy("clockIn", "desc"), limit(20));
+    // Using a simpler query for initial stability
+    return query(q, limit(20));
   }, [db, user]);
 
   const { data: records, isLoading } = useCollection(attendanceQuery);
