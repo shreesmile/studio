@@ -1,20 +1,31 @@
 
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, Suspense, lazy } from "react";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
-import { OverviewTab } from "@/components/dashboard/OverviewTab";
-import { UserManagement } from "@/components/dashboard/UserManagement";
-import { AttendanceTab } from "@/components/dashboard/AttendanceTab";
-import { LeaveManagement } from "@/components/dashboard/LeaveManagement";
-import { TaskManagement } from "@/components/dashboard/TaskManagement";
 import { useAuthStore } from "@/lib/auth-store";
 import { ShieldCheck, Lock, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useUser, useFirestore, FirebaseClientProvider } from "@/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { LoginForm } from "@/components/auth/LoginForm";
+
+// Lazy load dashboard components
+const OverviewTab = lazy(() => import("@/components/dashboard/OverviewTab").then(m => ({ default: m.OverviewTab })));
+const UserManagement = lazy(() => import("@/components/dashboard/UserManagement").then(m => ({ default: m.UserManagement })));
+const AttendanceTab = lazy(() => import("@/components/dashboard/AttendanceTab").then(m => ({ default: m.AttendanceTab })));
+const LeaveManagement = lazy(() => import("@/components/dashboard/LeaveManagement").then(m => ({ default: m.LeaveManagement })));
+const TaskManagement = lazy(() => import("@/components/dashboard/TaskManagement").then(m => ({ default: m.TaskManagement })));
+
+function TabLoader() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3 opacity-50">
+      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Loading Terminal Module...</p>
+    </div>
+  );
+}
 
 function DashboardContent() {
   const { user, isUserLoading } = useUser();
@@ -25,22 +36,20 @@ function DashboardContent() {
   const syncRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // If no user, we aren't initializing anymore
     if (!isUserLoading && !user) {
       setIsInitializing(false);
       return;
     }
 
-    // Set up real-time sync for profile
     if (user && syncRef.current !== user.uid) {
       syncRef.current = user.uid;
       const unsub = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
         if (docSnap.exists()) {
-          setProfile(docSnap.data() as any);
+          const data = docSnap.data();
+          setProfile(data as any);
         }
         setIsInitializing(false);
       }, (err) => {
-        console.error("Profile sync error:", err);
         setIsInitializing(false);
       });
       return () => unsub();
@@ -81,14 +90,15 @@ function DashboardContent() {
   }
 
   const renderContent = () => {
-    switch (activeTab) {
-      case "dashboard": return <OverviewTab />;
-      case "attendance": return <AttendanceTab />;
-      case "leave": return <LeaveManagement />;
-      case "users": return <UserManagement />;
-      case "tasks": return <TaskManagement />;
-      default: return <OverviewTab />;
-    }
+    return (
+      <Suspense fallback={<TabLoader />}>
+        {activeTab === "dashboard" && <OverviewTab />}
+        {activeTab === "attendance" && <AttendanceTab />}
+        {activeTab === "leave" && <LeaveManagement />}
+        {activeTab === "users" && <UserManagement />}
+        {activeTab === "tasks" && <TaskManagement />}
+      </Suspense>
+    );
   };
 
   const getPageTitle = () => {

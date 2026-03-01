@@ -31,7 +31,6 @@ export function OverviewTab() {
   const { data: todayAttendance, isLoading: loadingAtt } = useCollection(attendanceQuery);
 
   const usersQuery = useMemoFirebase(() => {
-    // Only authorized roles should even attempt to list users
     if (!user || !['Super Admin', 'Admin', 'Manager', 'Team Lead'].includes(user.role)) return null;
     return query(collection(db, "users"), limit(100));
   }, [db, user]);
@@ -47,7 +46,7 @@ export function OverviewTab() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-500">
       <div className="grid gap-6 md:grid-cols-4">
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="pb-2">
