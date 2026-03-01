@@ -4,231 +4,70 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Role",
       "type": "object",
-      "description": "Defines the distinct roles within the application, each with specific access privileges.",
+      "description": "Defines the distinct roles within the application.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Role entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the role (e.g., 'Super Admin', 'Employee')."
-        },
-        "description": {
-          "type": "string",
-          "description": "A brief description explaining the responsibilities and scope of the role."
-        },
-        "permissions": {
-          "type": "array",
-          "description": "A list of distinct permission identifiers associated with this role, determining what actions users with this role can perform.",
-          "items": {
-            "type": "string"
-          }
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "permissions": { "type": "array", "items": { "type": "string" } }
       },
-      "required": [
-        "id",
-        "name",
-        "description",
-        "permissions"
-      ]
-    },
-    "Department": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Department",
-      "type": "object",
-      "description": "Represents a department or organizational unit within the company.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Department entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the department (e.g., 'Engineering', 'Human Resources')."
-        },
-        "description": {
-          "type": "string",
-          "description": "A brief description of the department's primary functions and responsibilities."
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "description"
-      ]
+      "required": ["id", "name", "description", "permissions"]
     },
     "User": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "Represents an individual user account in the system, detailing their profile, role, and reporting structure.",
+      "description": "Represents an individual user account.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the User entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The full name of the user."
-        },
-        "email": {
-          "type": "string",
-          "description": "The user's email address, used for login and notifications.",
-          "format": "email"
-        },
-        "password": {
-          "type": "string",
-          "description": "The user's password (stored for visibility in this prototype's management table)."
-        },
-        "role": {
-          "type": "string",
-          "description": "The friendly name of the role assigned to this user."
-        },
-        "department": {
-          "type": "string",
-          "description": "The name of the department the user belongs to."
-        },
-        "reportingToId": {
-          "type": "string",
-          "description": "Optional reference to the ID of the user's direct manager."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the account was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the account was last updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "password": { "type": "string" },
+        "role": { "type": "string", "enum": ["Super Admin", "Admin", "Manager", "Team Lead", "Employee"] },
+        "department": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "name",
-        "email",
-        "role",
-        "password",
-        "department",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["id", "name", "email", "role", "password", "department", "createdAt", "updatedAt"]
     },
     "Task": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Task",
       "type": "object",
-      "description": "Represents a specific task that can be assigned, tracked, and managed.",
+      "description": "Represents a trackable task.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Task."
-        },
-        "title": {
-          "type": "string",
-          "description": "A concise title for the task."
-        },
-        "description": {
-          "type": "string",
-          "description": "A detailed explanation of the task."
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status (e.g., 'pending', 'in-progress', 'completed')."
-        },
-        "deadline": {
-          "type": "string",
-          "description": "Target completion date."
-        },
-        "assignedToId": {
-          "type": "string",
-          "description": "ID of the user assigned to this task."
-        },
-        "assignedToRole": {
-          "type": "string",
-          "description": "Role of the user assigned to this task (for hierarchy filtering)."
-        },
-        "assignedToDepartment": {
-          "type": "string",
-          "description": "Department of the user assigned to this task (for team filtering)."
-        },
-        "assignedById": {
-          "type": "string",
-          "description": "ID of the user who assigned this task."
-        },
-        "assignedByRole": {
-          "type": "string",
-          "description": "Role of the user who assigned this task."
-        },
-        "assignedByName": {
-          "type": "string",
-          "description": "Name of the user who assigned this task."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Creation timestamp.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Update timestamp.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "in-progress", "completed", "blocked"] },
+        "deadline": { "type": "string" },
+        "assignedToId": { "type": "string" },
+        "assignedToRole": { "type": "string" },
+        "assignedToDepartment": { "type": "string" },
+        "assignedById": { "type": "string" },
+        "assignedByRole": { "type": "string" },
+        "assignedByName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "title",
-        "description",
-        "status",
-        "assignedToId",
-        "assignedById",
-        "assignedByRole",
-        "assignedToRole",
-        "assignedToDepartment",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["id", "title", "description", "status", "assignedToId", "assignedById", "assignedByRole", "assignedToRole", "assignedToDepartment", "createdAt", "updatedAt"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Stores user profiles."
-        }
-      },
-      {
-        "path": "/tasks/{taskId}",
-        "definition": {
-          "entityName": "Task",
-          "schema": {
-            "$ref": "#/backend/entities/Task"
-          },
-          "description": "Stores task documents."
-        }
-      },
-      {
-        "path": "/user_roles_{role}/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Existence-based role check collections."
-        }
-      }
-    ]
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Primary user profile storage."
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Centralized task board documents."
+    },
+    "/user_roles_{role}/{userId}": {
+      "schema": { "type": "object" },
+      "description": "Hierarchy check markers for security rules."
+    }
   }
 }

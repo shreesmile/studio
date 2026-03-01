@@ -13,7 +13,6 @@ import {
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
-  DropdownMenuLabel, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { 
@@ -68,11 +67,11 @@ interface UserData {
 }
 
 const ROLE_HIERARCHY: Record<UserRole, number> = {
-  'Super Admin': 100,
-  'Admin': 80,
-  'Manager': 60,
-  'Team Lead': 40,
-  'Employee': 20
+  'Super Admin': 4,
+  'Admin': 3,
+  'Manager': 2,
+  'Team Lead': 1,
+  'Employee': 0
 };
 
 export function UserManagement() {
@@ -104,7 +103,7 @@ export function UserManagement() {
     name: '',
     email: '',
     role: 'Employee',
-    department: 'General',
+    department: '',
     password: ''
   });
 
@@ -112,25 +111,22 @@ export function UserManagement() {
     if (!users) return [];
     const term = search.toLowerCase().trim();
     return users.filter(u => {
-      const name = (u.name || "").toLowerCase();
-      const role = (u.role || "").toLowerCase();
-      const email = (u.email || "").toLowerCase();
-      
       const targetPower = ROLE_HIERARCHY[u.role] || 0;
       const isVisible = currentUser?.role === 'Super Admin' || currentRolePower > targetPower || u.id === currentUser?.id;
 
       if (!isVisible) return false;
       if (!term) return true;
       
-      return name.includes(term) || role.includes(term) || email.includes(term);
+      return (u.name || "").toLowerCase().includes(term) || 
+             (u.role || "").toLowerCase().includes(term) || 
+             (u.email || "").toLowerCase().includes(term);
     });
   }, [users, search, currentUser?.role, currentRolePower, currentUser?.id]);
 
-  const canManage = useCallback((targetRole: UserRole, targetId: string) => {
+  const canManageAction = useCallback((targetRole: UserRole, targetId: string) => {
     if (!currentUser) return false;
     if (currentUser.id === targetId) return true;
-    const targetPower = ROLE_HIERARCHY[targetRole] || 0;
-    return currentUser.role === 'Super Admin' || currentRolePower > targetPower;
+    return currentRolePower > ROLE_HIERARCHY[targetRole];
   }, [currentUser, currentRolePower]);
 
   const handleOpenModal = useCallback((mode: 'add' | 'edit' | 'view', user?: UserData) => {
@@ -141,12 +137,12 @@ export function UserManagement() {
         name: user.name || '',
         email: user.email || '',
         role: user.role || 'Employee',
-        department: user.department || 'General',
+        department: user.department || '',
         password: user.password || ''
       });
       setSelectedUser(user);
     } else {
-      setFormData({ id: '', name: '', email: '', role: 'Employee', department: 'General', password: '' });
+      setFormData({ id: '', name: '', email: '', role: 'Employee', department: 'General', password: 'password123' });
       setSelectedUser(null);
     }
     setIsModalOpen(true);
@@ -159,23 +155,23 @@ export function UserManagement() {
     try {
       if (modalMode === 'add') {
         const newId = doc(collection(db, "users")).id;
-        const newDocRef = doc(db, "users", newId);
         const userData = { 
           id: newId,
-          name: formData.name || 'New User',
-          email: formData.email || '',
-          role: formData.role || 'Employee',
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
           department: formData.department || 'General',
           password: formData.password || 'password123',
           createdAt: serverTimestamp(), 
           updatedAt: serverTimestamp() 
         };
-        setDocumentNonBlocking(newDocRef, userData, { merge: true });
+        setDocumentNonBlocking(doc(db, "users", newId), userData, { merge: true });
         
+        // Marker for security rules
         const rolePath = `user_roles_${userData.role.replace(/\s+/g, '_')}`;
         setDocumentNonBlocking(doc(db, rolePath, newId), { active: true }, { merge: true });
 
-        toast({ title: "User Created", description: "The profile has been added to RoleFlow." });
+        toast({ title: "User Created", description: "Profile has been deployed." });
       } else if (modalMode === 'edit' && selectedUser?.id) {
         const updateData = {
           name: formData.name,
@@ -186,15 +182,15 @@ export function UserManagement() {
           updatedAt: serverTimestamp()
         };
         
-        if (selectedUser.role && selectedUser.role !== updateData.role) {
-          const oldRolePath = `user_roles_${selectedUser.role.replace(/\s+/g, '_')}`;
-          const newRolePath = `user_roles_${updateData.role.replace(/\s+/g, '_')}`;
-          deleteDocumentNonBlocking(doc(db, oldRolePath, selectedUser.id));
-          setDocumentNonBlocking(doc(db, newRolePath, selectedUser.id), { active: true }, { merge: true });
+        if (selectedUser.role !== updateData.role) {
+          const oldPath = `user_roles_${selectedUser.role?.replace(/\s+/g, '_')}`;
+          const newPath = `user_roles_${updateData.role.replace(/\s+/g, '_')}`;
+          deleteDocumentNonBlocking(doc(db, oldPath, selectedUser.id));
+          setDocumentNonBlocking(doc(db, newPath, selectedUser.id), { active: true }, { merge: true });
         }
 
         updateDocumentNonBlocking(doc(db, "users", selectedUser.id), updateData);
-        toast({ title: "Profile Updated", description: "Changes saved successfully." });
+        toast({ title: "Profile Updated", description: "Changes synchronized." });
       }
       setIsModalOpen(false);
     } catch (error: any) {
@@ -204,15 +200,13 @@ export function UserManagement() {
 
   const confirmDelete = () => {
     if (!userToDelete) return;
-    
-    const targetUser = users?.find(u => u.id === userToDelete);
-    if (targetUser?.role) {
-      const rolePath = `user_roles_${targetUser.role.replace(/\s+/g, '_')}`;
+    const target = users?.find(u => u.id === userToDelete);
+    if (target) {
+      const rolePath = `user_roles_${target.role.replace(/\s+/g, '_')}`;
       deleteDocumentNonBlocking(doc(db, rolePath, userToDelete));
+      deleteDocumentNonBlocking(doc(db, "users", userToDelete));
+      toast({ title: "User Removed", description: "Account purged." });
     }
-
-    deleteDocumentNonBlocking(doc(db, "users", userToDelete));
-    toast({ title: "User Removed", description: "The account was deleted from the system." });
     setIsDeleteDialogOpen(false);
     setUserToDelete(null);
   };
@@ -224,7 +218,7 @@ export function UserManagement() {
           <div className="relative w-full sm:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Search team..." 
+              placeholder="Search directory..." 
               className="pl-9 bg-white"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -242,7 +236,7 @@ export function UserManagement() {
         {isAdminUser && (
           <Button onClick={() => handleOpenModal('add')} className="bg-primary">
             <UserPlus className="mr-2 h-4 w-4" />
-            Add User
+            Add Employee
           </Button>
         )}
       </div>
@@ -251,27 +245,27 @@ export function UserManagement() {
         <Table>
           <TableHeader className="bg-muted/30">
             <TableRow>
-              <TableHead className="font-bold">Name</TableHead>
+              <TableHead className="font-bold">Identity</TableHead>
               <TableHead className="font-bold">Role</TableHead>
-              <TableHead className="font-bold">Department</TableHead>
+              <TableHead className="font-bold">Unit</TableHead>
               <TableHead className="font-bold">Email</TableHead>
               <TableHead className="font-bold">Password</TableHead>
-              <TableHead className="text-right font-bold">Action</TableHead>
+              <TableHead className="text-right font-bold">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={6} className="h-32 text-center"><Loader2 className="h-6 w-6 animate-spin inline-block text-primary/40" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="h-32 text-center"><Loader2 className="h-6 w-6 animate-spin inline-block opacity-20" /></TableCell></TableRow>
             ) : filteredUsers.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No users found or unauthorized to view.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">Unauthorized or no results found.</TableCell></TableRow>
             ) : (
               filteredUsers.map((u) => (
                 <TableRow key={u.id}>
-                  <TableCell className="font-medium">{u.name || "Anonymous"}</TableCell>
-                  <TableCell><Badge variant={u.role === 'Super Admin' ? 'destructive' : 'secondary'} className="text-[10px] py-0">{u.role}</Badge></TableCell>
+                  <TableCell className="font-medium">{u.name || "N/A"}</TableCell>
+                  <TableCell><Badge variant={u.role === 'Super Admin' ? 'destructive' : 'secondary'} className="text-[10px]">{u.role}</Badge></TableCell>
                   <TableCell>{u.department || "General"}</TableCell>
-                  <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                  <TableCell className="font-mono text-xs">
+                  <TableCell className="text-muted-foreground text-xs">{u.email}</TableCell>
+                  <TableCell className="font-mono text-[10px]">
                     {showPasswords ? (u.password || "N/A") : "••••••••"}
                   </TableCell>
                   <TableCell className="text-right">
@@ -281,10 +275,10 @@ export function UserManagement() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleOpenModal('view', u)}><Eye className="mr-2 h-4 w-4" /> View</DropdownMenuItem>
-                        {canManage(u.role, u.id) && (
+                        {canManageAction(u.role, u.id) && (
                           <DropdownMenuItem onClick={() => handleOpenModal('edit', u)}><Edit className="mr-2 h-4 w-4" /> Edit</DropdownMenuItem>
                         )}
-                        {canManage(u.role, u.id) && currentUser?.id !== u.id && (
+                        {canManageAction(u.role, u.id) && currentUser?.id !== u.id && (
                           <DropdownMenuItem className="text-destructive" onClick={() => { setUserToDelete(u.id); setIsDeleteDialogOpen(true); }}><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
@@ -300,51 +294,47 @@ export function UserManagement() {
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{modalMode.toUpperCase()} USER PROFILE</DialogTitle>
+            <DialogTitle>{modalMode.toUpperCase()} PROFILE</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 py-2">
+          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
             <div className="grid gap-2">
-              <Label htmlFor="u-name">Full Name</Label>
+              <Label>Full Name</Label>
               <Input 
-                id="u-name" 
                 disabled={modalMode === 'view'} 
-                value={formData.name || ''} 
+                value={formData.name} 
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })} 
                 required
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="u-email">Email</Label>
+              <Label>Email</Label>
               <Input 
-                id="u-email" 
                 disabled={modalMode !== 'add'} 
-                value={formData.email || ''} 
+                value={formData.email} 
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })} 
                 required
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="u-pass">Password</Label>
+              <Label>Administrative Password</Label>
               <Input 
-                id="u-pass"
-                type="text" 
                 disabled={modalMode === 'view'} 
-                value={formData.password || ''} 
+                value={formData.password} 
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
                 required
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="u-role">Assign Role</Label>
+              <Label>Assigned Role</Label>
               <Select 
-                disabled={modalMode === 'view' || (!isAdminUser && currentUser?.id !== selectedUser?.id)} 
-                value={formData.role || 'Employee'} 
+                disabled={modalMode === 'view' || !isAdminUser} 
+                value={formData.role} 
                 onValueChange={(val: UserRole) => setFormData({ ...formData, role: val })}
               >
-                <SelectTrigger id="u-role"><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.keys(ROLE_HIERARCHY).map(r => (
-                    <SelectItem key={r} value={r} disabled={ROLE_HIERARCHY[r as UserRole] > currentRolePower && currentUser?.role !== 'Super Admin'}>
+                    <SelectItem key={r} value={r} disabled={ROLE_HIERARCHY[r as UserRole] >= currentRolePower && currentUser?.role !== 'Super Admin'}>
                       {r}
                     </SelectItem>
                   ))}
@@ -352,17 +342,16 @@ export function UserManagement() {
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="u-dept">Department</Label>
+              <Label>Department / Unit</Label>
               <Input 
-                id="u-dept" 
                 disabled={modalMode === 'view'} 
-                value={formData.department || ''} 
+                value={formData.department} 
                 onChange={(e) => setFormData({ ...formData, department: e.target.value })} 
                 required
               />
             </div>
-            <DialogFooter className="pt-4">
-              {modalMode !== 'view' && <Button type="submit" className="w-full">Save Changes</Button>}
+            <DialogFooter>
+              {modalMode !== 'view' && <Button type="submit" className="w-full">Commit Changes</Button>}
             </DialogFooter>
           </form>
         </DialogContent>
@@ -371,12 +360,12 @@ export function UserManagement() {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Removal</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently remove the user and revoke all access. This action cannot be undone.</AlertDialogDescription>
+            <AlertDialogTitle>Permanent Removal</AlertDialogTitle>
+            <AlertDialogDescription>This will purge the account and role markers from RoleFlow. This action is irreversible.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90 text-white">Delete Account</AlertDialogAction>
+            <AlertDialogCancel>Abort</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">Purge Account</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

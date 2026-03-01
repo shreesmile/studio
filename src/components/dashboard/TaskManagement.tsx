@@ -21,19 +21,17 @@ import {
   Filter,
   User,
   Loader2,
-  Settings2,
-  Briefcase
+  Settings2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useAuthStore } from "@/lib/auth-store";
+import { useAuthStore, UserRole } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { collection, query, where, serverTimestamp, doc } from "firebase/firestore";
 import { 
   Dialog, 
   DialogContent, 
   DialogHeader, 
-  DialogTitle,
-  DialogFooter
+  DialogTitle 
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -43,9 +41,16 @@ import {
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
-  DropdownMenuLabel, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+
+const ROLE_POWER: Record<UserRole, number> = {
+  'Super Admin': 4,
+  'Admin': 3,
+  'Manager': 2,
+  'Team Lead': 1,
+  'Employee': 0
+};
 
 export function TaskManagement() {
   const { profile: currentUser } = useAuthStore();
@@ -54,15 +59,12 @@ export function TaskManagement() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // --- Task Fetching Logic Based on Provided Matrix ---
   const tasksRef = useMemoFirebase(() => {
     let q = query(collection(db, "tasks"));
-    
     if (!currentUser) return q;
 
     switch (currentUser.role) {
-      case 'Super Admin':
-        break;
+      case 'Super Admin': break;
       case 'Admin':
         q = query(q, where("assignedByRole", "!=", "Super Admin"));
         break;
@@ -80,39 +82,28 @@ export function TaskManagement() {
   const { data: allTasks, isLoading } = useCollection(tasksRef);
   const tasks = allTasks?.filter(t => filterStatus === 'all' || t.status === filterStatus) || [];
 
-  const usersRef = useMemoFirebase(() => query(collection(db, "users")), [db]);
+  const usersRef = useMemoFirebase(() => collection(db, "users"), [db]);
   const { data: allUsers } = useCollection(usersRef);
 
-  // --- Strict Assignment Subordinates Matrix ---
   const subordinates = allUsers?.filter(u => {
-    if (!currentUser) return false;
-    if (u.id === currentUser.id) return false;
+    if (!currentUser || u.id === currentUser.id) return false;
+    const myPower = ROLE_POWER[currentUser.role];
+    const targetPower = ROLE_POWER[u.role];
 
-    switch (currentUser.role) {
-      case 'Super Admin':
-        return true;
-      case 'Admin':
-        return ['Manager', 'Team Lead', 'Employee'].includes(u.role);
-      case 'Manager':
-        return (u.role === 'Team Lead' || u.role === 'Employee') && u.department === currentUser.department;
-      case 'Team Lead':
-        return u.role === 'Employee' && u.department === currentUser.department;
-      default:
-        return false;
-    }
+    // Assignment matrix logic
+    if (currentUser.role === 'Super Admin') return true;
+    if (currentUser.role === 'Admin') return targetPower < 3;
+    if (currentUser.role === 'Manager') return targetPower < 2 && u.department === currentUser.department;
+    if (currentUser.role === 'Team Lead') return targetPower === 0 && u.department === currentUser.department;
+    return false;
   }) || [];
 
   const [newTask, setNewTask] = useState({ title: '', description: '', assignedToId: '', deadline: '' });
 
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser) return;
-
-    const targetUser = allUsers?.find(u => u.id === newTask.assignedToId);
-    if (!targetUser) {
-      toast({ variant: "destructive", title: "Error", description: "Select a valid assignee." });
-      return;
-    }
+    const target = allUsers?.find(u => u.id === newTask.assignedToId);
+    if (!target || !currentUser) return;
 
     const taskData = {
       ...newTask,
@@ -120,8 +111,8 @@ export function TaskManagement() {
       assignedById: currentUser.id,
       assignedByRole: currentUser.role,
       assignedByName: currentUser.name,
-      assignedToRole: targetUser.role,
-      assignedToDepartment: targetUser.department,
+      assignedToRole: target.role,
+      assignedToDepartment: target.department,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
@@ -129,15 +120,7 @@ export function TaskManagement() {
     addDocumentNonBlocking(collection(db, "tasks"), taskData);
     setIsCreateModalOpen(false);
     setNewTask({ title: '', description: '', assignedToId: '', deadline: '' });
-    toast({ title: "Task Assigned", description: "The task has been successfully dispatched." });
-  };
-
-  const handleUpdateStatus = (taskId: string, newStatus: string) => {
-    updateDocumentNonBlocking(doc(db, "tasks", taskId), { 
-      status: newStatus,
-      updatedAt: serverTimestamp() 
-    });
-    toast({ title: "Status Updated", description: `Task marked as ${newStatus}.` });
+    toast({ title: "Task Deployed", description: "Workflow synchronized." });
   };
 
   const getStatusColor = (status: string) => {
@@ -150,41 +133,39 @@ export function TaskManagement() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-40 bg-white">
-              <Filter className="w-3 h-3 mr-2" />
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Tasks</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="in-progress">In Progress</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="blocked">Blocked</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-40 bg-white">
+            <Filter className="w-3 h-3 mr-2" />
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Operations</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="in-progress">In Progress</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="blocked">Blocked</SelectItem>
+          </SelectContent>
+        </Select>
         {currentUser?.role !== 'Employee' && (
           <Button onClick={() => setIsCreateModalOpen(true)} className="bg-primary">
             <Plus className="mr-2 h-4 w-4" />
-            Assign New Task
+            Assign Workspace Task
           </Button>
         )}
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-20"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
+        <div className="flex justify-center py-20"><Loader2 className="animate-spin h-8 w-8 text-primary/40" /></div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {tasks.length === 0 ? (
             <div className="col-span-2 py-20 text-center text-muted-foreground border border-dashed rounded-xl bg-white/50">
-              No tasks currently tracked in this view.
+              No tasks matched the current clearance level.
             </div>
           ) : tasks.map((task) => (
-            <Card key={task.id} className="hover:shadow-md transition-shadow bg-white border-none relative group">
+            <Card key={task.id} className="hover:shadow-md transition-shadow bg-white border-none">
               <CardHeader className="flex flex-row items-start justify-between pb-2">
                 <div className="space-y-1">
                   <Badge variant="outline" className={getStatusColor(task.status)}>
@@ -194,14 +175,12 @@ export function TaskManagement() {
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Settings2 className="h-4 w-4" />
-                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8"><Settings2 className="h-4 w-4" /></Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleUpdateStatus(task.id, 'in-progress')}>Mark In Progress</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleUpdateStatus(task.id, 'completed')}>Mark Completed</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleUpdateStatus(task.id, 'blocked')}>Mark Blocked</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'in-progress' })}>In Progress</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'completed' })}>Completed</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'blocked' })}>Blocked</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </CardHeader>
@@ -213,7 +192,7 @@ export function TaskManagement() {
                     <span className="flex items-center gap-1"><User className="h-3 w-3" /> {allUsers?.find(u => u.id === task.assignedToId)?.name || 'N/A'}</span>
                   </div>
                   <div className="text-[9px] uppercase font-medium text-primary/60">
-                    Dept: {task.assignedToDepartment} • By: {task.assignedByName || 'System'}
+                    Dept: {task.assignedToDepartment} • By: {task.assignedByName} ({task.assignedByRole})
                   </div>
                 </div>
               </CardContent>
@@ -225,7 +204,7 @@ export function TaskManagement() {
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>ASSIGN TASK</DialogTitle>
+            <DialogTitle>DEPLOY WORKFLOW TASK</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateTask} className="space-y-4 pt-4">
             <div className="grid gap-2">
@@ -233,7 +212,7 @@ export function TaskManagement() {
               <Input required value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} />
             </div>
             <div className="grid gap-2">
-              <Label>Assignee</Label>
+              <Label>Designated Assignee</Label>
               <Select required value={newTask.assignedToId} onValueChange={val => setNewTask({...newTask, assignedToId: val})}>
                 <SelectTrigger><SelectValue placeholder="Select subordinate" /></SelectTrigger>
                 <SelectContent>
@@ -244,14 +223,14 @@ export function TaskManagement() {
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label>Description</Label>
+              <Label>Operational Details</Label>
               <Textarea value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})} />
             </div>
             <div className="grid gap-2">
-              <Label>Deadline</Label>
+              <Label>Target Deadline</Label>
               <Input type="date" required value={newTask.deadline} onChange={e => setNewTask({...newTask, deadline: e.target.value})} />
             </div>
-            <Button type="submit" className="w-full h-11 bg-primary">DEPLOY TASK</Button>
+            <Button type="submit" className="w-full h-11 bg-primary">INITIALIZE WORKFLOW</Button>
           </form>
         </DialogContent>
       </Dialog>
