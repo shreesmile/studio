@@ -88,7 +88,8 @@ export function UserManagement() {
   [currentUser?.role]);
 
   const isAdmin = useCallback(() => {
-    return currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
+    if (!currentUser) return false;
+    return currentUser.role === 'Super Admin' || currentUser.role === 'Admin';
   }, [currentUser?.role]);
 
   // Firestore Data - Memoized
@@ -131,11 +132,12 @@ export function UserManagement() {
   }, [users, search, currentUser?.role, currentRolePower, currentUser?.id]);
 
   const canManage = useCallback((targetRole: UserRole, targetId: string) => {
-    if (currentUser?.id === targetId) return true;
-    if (currentUser?.role === 'Super Admin') return true;
-    if (currentUser?.role === 'Admin' && targetRole !== 'Super Admin') return true;
-    if (currentUser?.role === 'Manager' && (targetRole === 'Team Lead' || targetRole === 'Employee')) return true;
-    if (currentUser?.role === 'Team Lead' && targetRole === 'Employee') return true;
+    if (!currentUser) return false;
+    if (currentUser.id === targetId) return true;
+    if (currentUser.role === 'Super Admin') return true;
+    if (currentUser.role === 'Admin' && targetRole !== 'Super Admin') return true;
+    if (currentUser.role === 'Manager' && (targetRole === 'Team Lead' || targetRole === 'Employee')) return true;
+    if (currentUser.role === 'Team Lead' && targetRole === 'Employee') return true;
     return false;
   }, [currentUser?.role, currentUser?.id]);
 
