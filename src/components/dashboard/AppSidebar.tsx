@@ -42,8 +42,7 @@ const navItems: NavItem[] = [
   { id: "attendance", title: "Attendance", icon: Clock, minWeight: 1 },
   { id: "leave", title: "Leave Requests", icon: CalendarDays, minWeight: 1 },
   { id: "users", title: "User Directory", icon: Users, minWeight: 2 },
-  { id: "departments", title: "Departments", icon: Briefcase, minWeight: 4 },
-  { id: "settings", title: "Settings", icon: Settings, minWeight: 5 },
+  { id: "tasks", title: "Tasks", icon: Briefcase, minWeight: 1 },
 ];
 
 const ROLE_WEIGHTS: Record<UserRole, number> = {
@@ -71,6 +70,7 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
 
   return (
     <Sidebar collapsible="icon" className="border-r bg-white">
+      <SheetTitle className="sr-only">Main Navigation Sidebar</SheetTitle>
       <SidebarHeader className="h-16 flex items-center px-4 border-b">
         <div className="flex items-center gap-2 overflow-hidden">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-sm">

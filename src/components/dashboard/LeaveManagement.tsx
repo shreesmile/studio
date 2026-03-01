@@ -9,7 +9,7 @@ import { useAuthStore } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { collection, query, where, doc, orderBy, serverTimestamp } from "firebase/firestore";
 import { CalendarDays, Plus, CheckCircle, XCircle, Clock, Loader2 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,12 +23,12 @@ export function LeaveManagement() {
   const [newRequest, setNewRequest] = useState({ startDate: '', endDate: '', reason: '' });
 
   const leaveQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!user || !user.role) return null;
     let q = query(collection(db, "leave_requests"));
     
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", user.id));
-    } else if (user.role === 'Team Lead' || user.role === 'Manager') {
+    } else if (['Team Lead', 'Manager'].includes(user.role) && user.department) {
       q = query(q, where("department", "==", user.department));
     }
     
@@ -152,6 +152,9 @@ export function LeaveManagement() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="uppercase tracking-tighter font-black">Leave Application Terminal</DialogTitle>
+            <DialogDescription>
+              Submit a formal request for organizational leave approval.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleRequestSubmit} className="space-y-4 pt-4">
             <div className="grid grid-cols-2 gap-4">

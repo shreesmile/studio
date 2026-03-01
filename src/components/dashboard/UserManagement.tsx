@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
@@ -20,7 +21,8 @@ import {
   DialogContent, 
   DialogFooter, 
   DialogHeader, 
-  DialogTitle 
+  DialogTitle,
+  DialogDescription
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -298,6 +300,9 @@ export function UserManagement() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{modalMode.toUpperCase()} PROFILE</DialogTitle>
+            <DialogDescription>
+              Manage organizational profile details for this user.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
             <div className="grid gap-2">

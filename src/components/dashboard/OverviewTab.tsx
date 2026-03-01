@@ -17,12 +17,12 @@ export function OverviewTab() {
   const today = format(new Date(), "yyyy-MM-dd");
 
   const attendanceQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!user || !user.role) return null;
     let q = query(collection(db, "attendance"), where("date", "==", today));
     
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", user.id));
-    } else if (['Team Lead', 'Manager'].includes(user.role)) {
+    } else if (['Team Lead', 'Manager'].includes(user.role) && user.department) {
       q = query(q, where("department", "==", user.department));
     }
     return q;

@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Plus, Calendar, Filter, User, Loader2, Settings2 } from "lucide-react";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuthStore, UserRole } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { collection, query, where, serverTimestamp, doc } from "firebase/firestore";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,17 +33,19 @@ export function TaskManagement() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const tasksRef = useMemoFirebase(() => {
-    if (!currentUser) return null;
+    if (!currentUser || !currentUser.role) return null;
     let q = query(collection(db, "tasks"));
 
     switch (currentUser.role) {
       case 'Super Admin': break;
       case 'Admin':
-        q = query(q, where("assignedByRole", "!=", "Super Admin"));
+        // No strict filtering for admins
         break;
       case 'Manager':
       case 'Team Lead':
-        q = query(q, where("assignedToDepartment", "==", currentUser.department));
+        if (currentUser.department) {
+          q = query(q, where("assignedToDepartment", "==", currentUser.department));
+        }
         break;
       case 'Employee':
         q = query(q, where("assignedToId", "==", currentUser.id));
@@ -177,6 +179,9 @@ export function TaskManagement() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>DEPLOY WORKFLOW TASK</DialogTitle>
+            <DialogDescription>
+              Assign a new task to a subordinate within your department.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateTask} className="space-y-4 pt-4">
             <div className="grid gap-2">

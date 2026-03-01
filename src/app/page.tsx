@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useRef, Suspense, lazy } from "react";
+import React, { useState, useEffect, useRef, Suspense, lazy, useCallback } from "react";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { useAuthStore } from "@/lib/auth-store";
@@ -11,7 +11,7 @@ import { useUser, useFirestore, FirebaseClientProvider } from "@/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { LoginForm } from "@/components/auth/LoginForm";
 
-// Lazy load dashboard components
+// Lazy load dashboard components for performance
 const OverviewTab = lazy(() => import("@/components/dashboard/OverviewTab").then(m => ({ default: m.OverviewTab })));
 const UserManagement = lazy(() => import("@/components/dashboard/UserManagement").then(m => ({ default: m.UserManagement })));
 const AttendanceTab = lazy(() => import("@/components/dashboard/AttendanceTab").then(m => ({ default: m.AttendanceTab })));
@@ -22,7 +22,7 @@ function TabLoader() {
   return (
     <div className="flex flex-col items-center justify-center py-20 gap-3 opacity-50">
       <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Loading Terminal Module...</p>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Initializing Module...</p>
     </div>
   );
 }
@@ -36,31 +36,37 @@ function DashboardContent() {
   const syncRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // If auth state is settled and there's no user, stop initializing
     if (!isUserLoading && !user) {
       setIsInitializing(false);
       return;
     }
 
+    // If there's a user and we haven't synced yet for this UID
     if (user && syncRef.current !== user.uid) {
       syncRef.current = user.uid;
       const unsub = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
         if (docSnap.exists()) {
-          const data = docSnap.data();
-          setProfile(data as any);
+          setProfile(docSnap.data() as any);
         }
         setIsInitializing(false);
       }, (err) => {
+        console.error("Profile sync failed:", err);
         setIsInitializing(false);
       });
       return () => unsub();
     }
   }, [user, isUserLoading, db, setProfile]);
 
+  const handleTabChange = useCallback((id: string) => {
+    setActiveTab(id);
+  }, []);
+
   if (isUserLoading || (user && isInitializing)) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Validating MNC Credentials</p>
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Verifying Clearance...</p>
       </div>
     );
   }
@@ -74,7 +80,7 @@ function DashboardContent() {
               <ShieldCheck className="text-white w-10 h-10" />
             </div>
             <h1 className="text-4xl font-black text-primary tracking-tighter uppercase italic">RoleFlow</h1>
-            <p className="mt-2 text-muted-foreground font-bold uppercase tracking-widest text-[10px]">Enterprise Time Management System</p>
+            <p className="mt-2 text-muted-foreground font-bold uppercase tracking-widest text-[10px]">Strategic Access Terminal</p>
           </div>
           <div className="bg-white p-8 rounded-[2rem] shadow-2xl border border-white space-y-6">
             <LoginForm />
@@ -88,18 +94,6 @@ function DashboardContent() {
       </div>
     );
   }
-
-  const renderContent = () => {
-    return (
-      <Suspense fallback={<TabLoader />}>
-        {activeTab === "dashboard" && <OverviewTab />}
-        {activeTab === "attendance" && <AttendanceTab />}
-        {activeTab === "leave" && <LeaveManagement />}
-        {activeTab === "users" && <UserManagement />}
-        {activeTab === "tasks" && <TaskManagement />}
-      </Suspense>
-    );
-  };
 
   const getPageTitle = () => {
     switch (activeTab) {
@@ -115,7 +109,7 @@ function DashboardContent() {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-[#ECF1F4]">
-        <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} />
+        <AppSidebar activeTab={activeTab} onTabChange={handleTabChange} />
         <SidebarInset className="bg-transparent">
           <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b bg-background/80 backdrop-blur-md px-6 shadow-sm">
             <div className="flex items-center gap-4">
@@ -133,7 +127,13 @@ function DashboardContent() {
             </div>
           </header>
           <main className="flex-1 p-8 max-w-7xl mx-auto w-full animate-fade-in">
-            {renderContent()}
+            <Suspense fallback={<TabLoader />}>
+              {activeTab === "dashboard" && <OverviewTab />}
+              {activeTab === "attendance" && <AttendanceTab />}
+              {activeTab === "leave" && <LeaveManagement />}
+              {activeTab === "users" && <UserManagement />}
+              {activeTab === "tasks" && <TaskManagement />}
+            </Suspense>
           </main>
         </SidebarInset>
       </div>
