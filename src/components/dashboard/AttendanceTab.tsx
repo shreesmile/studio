@@ -1,33 +1,40 @@
 
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, doc, limit, serverTimestamp } from "firebase/firestore";
-import { Clock, LogIn, LogOut, CheckCircle, Loader2 } from "lucide-react";
+import { collection, query, where, doc, limit, serverTimestamp, orderBy } from "firebase/firestore";
+import { Clock, LogIn, LogOut, CheckCircle, Loader2, Briefcase, FileText } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 export function AttendanceTab() {
   const { profile: user } = useAuthStore();
   const db = useFirestore();
+  const { toast } = useToast();
   const today = format(new Date(), "yyyy-MM-dd");
+
+  const [project, setProject] = useState("");
+  const [notes, setNotes] = useState("");
 
   const attendanceQuery = useMemoFirebase(() => {
     if (!user || !user.role || !user.id) return null;
     let q = query(collection(db, "attendance"));
     
-    // Employee sees own, Team Lead/Manager sees department, Admin+ sees all
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", user.id));
-    } else if (user.role === 'Team Lead' || user.role === 'Manager') {
+    } else if (['Team Lead', 'Manager'].includes(user.role)) {
       q = query(q, where("department", "==", user.department));
     }
     
-    return query(q, limit(20));
+    return query(q, orderBy("clockIn", "desc"), limit(50));
   }, [db, user]);
 
   const { data: records, isLoading } = useCollection(attendanceQuery);
@@ -38,6 +45,15 @@ export function AttendanceTab() {
 
   const handleClockIn = () => {
     if (!user) return;
+    if (!project.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please specify the project you are working on."
+      });
+      return;
+    }
+
     const now = new Date();
     const isLate = now.getHours() >= 9 && now.getMinutes() > 30;
     
@@ -48,10 +64,16 @@ export function AttendanceTab() {
       date: today,
       clockIn: now.toISOString(),
       status: isLate ? "Late" : "Present",
+      project: project.trim(),
+      notes: notes.trim(),
       createdAt: serverTimestamp()
     };
     
     addDocumentNonBlocking(collection(db, "attendance"), record);
+    toast({
+      title: "Clocked In",
+      description: `Shift initialized for project: ${project}`
+    });
   };
 
   const handleClockOut = () => {
@@ -65,6 +87,11 @@ export function AttendanceTab() {
       totalHours: Number(diffHours.toFixed(2)),
       updatedAt: serverTimestamp()
     });
+
+    toast({
+      title: "Clocked Out",
+      description: "Shift successfully finalized."
+    });
   };
 
   return (
@@ -76,7 +103,7 @@ export function AttendanceTab() {
               <Clock className="w-4 h-4 text-primary" />
               Terminal Access
             </CardTitle>
-            <CardDescription>MNC Timekeeping Protocol</CardDescription>
+            <CardDescription>Enterprise Operational Sync</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-center py-4">
@@ -89,15 +116,45 @@ export function AttendanceTab() {
             </div>
             
             {!todayRecord ? (
-              <Button onClick={handleClockIn} className="w-full h-12 gap-2 text-xs font-bold uppercase tracking-widest">
-                <LogIn className="w-4 h-4" />
-                Initialize Clock In
-              </Button>
+              <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
+                    <Briefcase className="w-3 h-3" /> Assigned Project
+                  </Label>
+                  <Input 
+                    placeholder="e.g., Enterprise Portal" 
+                    value={project}
+                    onChange={(e) => setProject(e.target.value)}
+                    className="bg-white text-xs h-9"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
+                    <FileText className="w-3 h-3" /> Shift Notes (Optional)
+                  </Label>
+                  <Textarea 
+                    placeholder="Describe your intended outcomes..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="bg-white text-xs min-h-[60px]"
+                  />
+                </div>
+                <Button onClick={handleClockIn} className="w-full h-12 gap-2 text-xs font-bold uppercase tracking-widest">
+                  <LogIn className="w-4 h-4" />
+                  Initialize Clock In
+                </Button>
+              </div>
             ) : !todayRecord.clockOut ? (
-              <Button onClick={handleClockOut} variant="destructive" className="w-full h-12 gap-2 text-xs font-bold uppercase tracking-widest">
-                <LogOut className="w-4 h-4" />
-                Terminal Clock Out
-              </Button>
+              <div className="space-y-4">
+                <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-widest">Active Task</p>
+                  <p className="text-sm font-bold truncate mt-1">{todayRecord.project}</p>
+                </div>
+                <Button onClick={handleClockOut} variant="destructive" className="w-full h-12 gap-2 text-xs font-bold uppercase tracking-widest">
+                  <LogOut className="w-4 h-4" />
+                  Terminal Clock Out
+                </Button>
+              </div>
             ) : (
               <div className="p-4 bg-green-50 border border-green-100 rounded-lg flex flex-col items-center gap-1">
                 <CheckCircle className="text-green-600 w-8 h-8" />
@@ -110,7 +167,7 @@ export function AttendanceTab() {
 
         <Card className="md:col-span-2 border-none shadow-sm bg-white overflow-hidden">
           <CardHeader className="bg-muted/30">
-            <CardTitle className="text-sm font-bold">Chronological Logs</CardTitle>
+            <CardTitle className="text-sm font-bold">Organizational Time Logs</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
@@ -120,31 +177,39 @@ export function AttendanceTab() {
                 <table className="w-full text-left text-[11px]">
                   <thead className="bg-muted/50 uppercase font-bold text-muted-foreground">
                     <tr>
-                      <th className="px-4 py-3">Member</th>
-                      <th className="px-4 py-3">Date</th>
-                      <th className="px-4 py-3">In/Out</th>
+                      <th className="px-4 py-3">User</th>
+                      <th className="px-4 py-3">Project</th>
+                      <th className="px-4 py-3">Shift Details</th>
                       <th className="px-4 py-3">Duration</th>
-                      <th className="px-4 py-3 text-right">Status</th>
+                      <th className="px-4 py-3 text-right">Clearance</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {records?.map((rec) => (
                       <tr key={rec.id} className="hover:bg-muted/20 transition-colors">
-                        <td className="px-4 py-3 font-semibold">{rec.userName}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{rec.date}</td>
-                        <td className="px-4 py-3 font-mono">
-                          {rec.clockIn ? format(new Date(rec.clockIn), "HH:mm") : "--:--"} - {rec.clockOut ? format(new Date(rec.clockOut), "HH:mm") : "--:--"}
+                        <td className="px-4 py-3 font-semibold">
+                          {rec.userName}
+                          <p className="text-[9px] text-muted-foreground uppercase">{rec.date}</p>
                         </td>
-                        <td className="px-4 py-3">{rec.totalHours ? `${rec.totalHours}h` : "In Progress"}</td>
+                        <td className="px-4 py-3 font-bold text-primary">{rec.project || "N/A"}</td>
+                        <td className="px-4 py-3">
+                          <p className="font-mono text-[10px]">
+                            {rec.clockIn ? format(new Date(rec.clockIn), "HH:mm") : "--"} - {rec.clockOut ? format(new Date(rec.clockOut), "HH:mm") : "--"}
+                          </p>
+                          <p className="text-[9px] text-muted-foreground italic truncate max-w-[150px]" title={rec.notes}>
+                            {rec.notes || "No operational notes provided."}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3">{rec.totalHours ? `${rec.totalHours}h` : "Operational"}</td>
                         <td className="px-4 py-3 text-right">
-                          <Badge variant={rec.status === 'Late' ? 'destructive' : 'secondary'} className="text-[9px] uppercase">
+                          <Badge variant={rec.status === 'Late' ? 'destructive' : 'secondary'} className="text-[8px] uppercase font-black">
                             {rec.status}
                           </Badge>
                         </td>
                       </tr>
                     ))}
                     {(!records || records.length === 0) && (
-                      <tr><td colSpan={5} className="p-10 text-center text-muted-foreground italic">No historical data available in current scope.</td></tr>
+                      <tr><td colSpan={5} className="p-10 text-center text-muted-foreground italic uppercase tracking-widest text-[10px] opacity-50">No historical records in current security scope.</td></tr>
                     )}
                   </tbody>
                 </table>

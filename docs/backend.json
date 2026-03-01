@@ -32,7 +32,9 @@
         "totalHours": { "type": "number" },
         "status": { "type": "string", "enum": ["Present", "Late", "Half-day", "Absent"] },
         "date": { "type": "string" },
-        "department": { "type": "string" }
+        "department": { "type": "string" },
+        "project": { "type": "string", "description": "The project the user is working on." },
+        "notes": { "type": "string", "description": "Optional notes for the shift." }
       },
       "required": ["userId", "clockIn", "date", "status"]
     },
