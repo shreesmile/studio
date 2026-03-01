@@ -12,10 +12,9 @@ import { OverviewTab } from "@/components/dashboard/OverviewTab";
 import { UserManagement } from "@/components/dashboard/UserManagement";
 import { TaskManagement } from "@/components/dashboard/TaskManagement";
 import { useAuthStore, UserRole } from "@/lib/auth-store";
-import { Button } from "@/components/ui/button";
-import { ShieldCheck, ArrowRight, Lock, LayoutDashboard, Loader2 } from "lucide-react";
+import { ShieldCheck, Lock, LayoutDashboard, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { useUser, useFirestore, useDoc, FirebaseClientProvider } from "@/firebase";
+import { useUser, useFirestore, FirebaseClientProvider } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { LoginForm } from "@/components/auth/LoginForm";
 
@@ -24,22 +23,34 @@ function DashboardContent() {
   const { profile, setProfile, logout: clearStore } = useAuthStore();
   const db = useFirestore();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Sync Firebase User with Firestore Profile
   useEffect(() => {
-    if (user && !profile) {
+    let isMounted = true;
+    
+    if (user && !profile && !isSyncing) {
       const fetchProfile = async () => {
-        const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setProfile(docSnap.data() as any);
+        setIsSyncing(true);
+        try {
+          const docRef = doc(db, "users", user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists() && isMounted) {
+            setProfile(docSnap.data() as any);
+          }
+        } catch (error) {
+          console.error("Profile sync error:", error);
+        } finally {
+          if (isMounted) setIsSyncing(false);
         }
       };
       fetchProfile();
     } else if (!user && profile) {
       clearStore();
     }
-  }, [user, profile, db, setProfile, clearStore]);
+    
+    return () => { isMounted = false; };
+  }, [user, profile, db, setProfile, clearStore, isSyncing]);
 
   // Tab permission check
   useEffect(() => {
@@ -51,11 +62,13 @@ function DashboardContent() {
     }
   }, [profile, activeTab]);
 
-  if (isUserLoading) {
+  if (isUserLoading || (user && !profile && isSyncing)) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground animate-pulse">Authenticating with RoleFlow...</p>
+        <p className="text-sm text-muted-foreground animate-pulse font-medium">
+          Synchronizing role hierarchy...
+        </p>
       </div>
     );
   }

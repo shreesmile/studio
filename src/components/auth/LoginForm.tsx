@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from "react";
@@ -10,6 +11,7 @@ import { doc } from "firebase/firestore";
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, UserPlus, LogIn, Sparkles } from "lucide-react";
+import { useAuthStore, UserRole as StoreUserRole } from "@/lib/auth-store";
 import { 
   Select, 
   SelectContent, 
@@ -29,6 +31,7 @@ export function LoginForm() {
   const auth = useAuth();
   const db = useFirestore();
   const { toast } = useToast();
+  const { setProfile } = useAuthStore();
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,16 +42,21 @@ export function LoginForm() {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
         
-        // Create Firestore profile (Non-blocking)
-        setDocumentNonBlocking(doc(db, "users", user.uid), {
+        const profileData = {
           id: user.uid,
           name,
           email,
-          role,
+          role: role as StoreUserRole,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           managerChainIds: []
-        }, { merge: true });
+        };
+
+        // Update local store immediately to stop sync loops
+        setProfile(profileData);
+
+        // Create Firestore profile (Non-blocking)
+        setDocumentNonBlocking(doc(db, "users", user.uid), profileData, { merge: true });
 
         // Create Role Assignment (Non-blocking)
         const rolePath = `user_roles_${role.toLowerCase().replace(/\s+/g, "_")}`;
@@ -61,6 +69,7 @@ export function LoginForm() {
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
+        // Profile will be synced by the page's useEffect
       }
 
       // Sync with Next.js Middleware via session API
