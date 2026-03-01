@@ -17,31 +17,30 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Role Checks (DBAC Pattern)
-    // We use exists() to check for the presence of a document in role-specific collections.
+    // Role Checks (DBAC Pattern with QAP Fallback)
+    // We check for document existence (fast) or fallback to getting the user profile (slower but resilient).
+    function hasRole(roleName) {
+      let roleDoc = roleName.lower().replace(" ", "_");
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/user_roles_$(roleDoc)/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == roleName
+      );
+    }
+
     function isSuperAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/user_roles_super_admin/$(request.auth.uid));
+      return hasRole('Super Admin');
     }
 
     function isAdmin() {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/user_roles_admin/$(request.auth.uid)) || 
-        isSuperAdmin()
-      );
+      return hasRole('Admin') || isSuperAdmin();
     }
 
     function isManager() {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/user_roles_manager/$(request.auth.uid)) || 
-        isAdmin()
-      );
+      return hasRole('Manager') || isAdmin();
     }
 
     function isTeamLead() {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/user_roles_team_lead/$(request.auth.uid)) || 
-        isManager()
-      );
+      return hasRole('Team Lead') || isManager();
     }
 
     // Hierarchy Checks
@@ -70,20 +69,15 @@ service cloud.firestore {
       allow get: if isOwner(userId) || isHigherAuthority() || (resource != null && resource.data.get('managerChainIds', []) != null && isSubordinate(resource.data.managerChainIds));
       allow list: if isSignedIn();
       
-      // Allow creation if the user is setting up their own account (first time) or if an admin is doing it
-      allow create: if isOwner(userId) || isHigherAuthority();
-      
-      // Allow update if owner, admin, or manager
-      allow update: if isOwner(userId) || isHigherAuthority() || (resource != null && resource.data.get('managerChainIds', []) != null && isSubordinate(resource.data.managerChainIds));
+      // Allow creation/update if owner or admin
+      allow create, update: if isOwner(userId) || isHigherAuthority();
       
       allow delete: if isSuperAdmin();
     }
 
     // Role Assignment Collections (DBAC)
-    // These collections simply track UID existence to grant permissions.
     match /user_roles_super_admin/{userId} {
       allow read: if isSignedIn();
-      // Allow self-provisioning for development/first user, or admin management
       allow write: if isOwner(userId) || isSuperAdmin(); 
     }
     match /user_roles_admin/{userId} {

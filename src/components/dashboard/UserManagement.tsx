@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -37,7 +36,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Search, UserPlus, Eye, Edit, Trash2, Loader2 } from "lucide-react";
+import { MoreHorizontal, Search, UserPlus, Eye, Edit, Trash2, Loader2, ShieldAlert } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +57,7 @@ import {
 } from "@/firebase";
 import { collection, doc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthStore } from "@/lib/auth-store";
 
 type UserRole = 'Super Admin' | 'Admin' | 'Manager' | 'Team Lead' | 'Employee';
 
@@ -73,8 +73,13 @@ interface UserData {
 export function UserManagement() {
   const db = useFirestore();
   const { toast } = useToast();
+  const { profile: currentUser } = useAuthStore();
   const [search, setSearch] = useState("");
   
+  // Authorization check
+  const isSuperAdmin = currentUser?.role === 'Super Admin';
+  const isAdmin = currentUser?.role === 'Admin' || isSuperAdmin;
+
   // Firestore Data - Real-time subscription
   const usersRef = useMemoFirebase(() => collection(db, "users"), [db]);
   const { data: users, isLoading } = useCollection<UserData>(usersRef);
@@ -130,7 +135,8 @@ export function UserManagement() {
           ...formData,
           id: newId,
           createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
+          managerChainIds: []
         }, { merge: true });
 
         // Also update role existence for RBAC rules
@@ -155,6 +161,10 @@ export function UserManagement() {
 
   const confirmDelete = () => {
     if (!userToDelete) return;
+    if (!isSuperAdmin) {
+      toast({ variant: "destructive", title: "Access Denied", description: "Only Super Admins can delete users." });
+      return;
+    }
     try {
       const docRef = doc(db, "users", userToDelete);
       deleteDocumentNonBlocking(docRef);
@@ -179,10 +189,12 @@ export function UserManagement() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button onClick={() => handleOpenModal('add')} className="bg-primary hover:bg-primary/90">
-          <UserPlus className="mr-2 h-4 w-4" />
-          Add User
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => handleOpenModal('add')} className="bg-primary hover:bg-primary/90">
+            <UserPlus className="mr-2 h-4 w-4" />
+            Add User
+          </Button>
+        )}
       </div>
 
       <div className="border rounded-xl bg-white shadow-sm overflow-hidden">
@@ -238,19 +250,25 @@ export function UserManagement() {
                         <DropdownMenuItem onClick={() => handleOpenModal('view', u)}>
                           <Eye className="mr-2 h-4 w-4" /> View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleOpenModal('edit', u)}>
-                          <Edit className="mr-2 h-4 w-4" /> Edit Profile
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          className="text-destructive focus:bg-destructive/10"
-                          onClick={() => {
-                            setUserToDelete(u.id);
-                            setIsDeleteDialogOpen(true);
-                          }}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete User
-                        </DropdownMenuItem>
+                        {isAdmin && (
+                          <DropdownMenuItem onClick={() => handleOpenModal('edit', u)}>
+                            <Edit className="mr-2 h-4 w-4" /> Edit Profile
+                          </DropdownMenuItem>
+                        )}
+                        {isSuperAdmin && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              className="text-destructive focus:bg-destructive/10"
+                              onClick={() => {
+                                setUserToDelete(u.id);
+                                setIsDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete User
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -299,7 +317,7 @@ export function UserManagement() {
             <div className="grid gap-2">
               <Label htmlFor="role">System Role</Label>
               <Select 
-                disabled={modalMode === 'view'}
+                disabled={modalMode === 'view' || !isSuperAdmin}
                 value={formData.role} 
                 onValueChange={(val: UserRole) => setFormData({ ...formData, role: val })}
               >
@@ -314,6 +332,11 @@ export function UserManagement() {
                   <SelectItem value="Employee">Employee</SelectItem>
                 </SelectContent>
               </Select>
+              {modalMode !== 'view' && !isSuperAdmin && (
+                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <ShieldAlert className="h-3 w-3" /> Only Super Admins can modify system roles.
+                </p>
+              )}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="department">Department</Label>
