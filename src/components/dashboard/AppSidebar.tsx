@@ -75,6 +75,8 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
 
   const handleLogout = async () => {
     await signOut(auth);
+    // Clear the middleware session
+    await fetch('/api/auth/session', { method: 'POST', body: JSON.stringify({ idToken: null }) });
     clearStore();
   };
 

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from "react";
@@ -5,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth, useFirestore } from "@/firebase";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, getIdToken } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, UserPlus, LogIn, Sparkles } from "lucide-react";
@@ -33,9 +34,10 @@ export function LoginForm() {
     e.preventDefault();
     setIsLoading(true);
     try {
+      let user;
       if (isSignUp) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
+        user = userCredential.user;
         
         // Create Firestore profile
         await setDoc(doc(db, "users", user.uid), {
@@ -48,7 +50,6 @@ export function LoginForm() {
           managerChainIds: []
         });
 
-        // Add to role-specific collection for security rules (DBAC)
         const rolePath = `user_roles_${role.toLowerCase().replace(" ", "_")}`;
         await setDoc(doc(db, rolePath, user.uid), { active: true });
 
@@ -57,8 +58,18 @@ export function LoginForm() {
           description: `Welcome to RoleFlow, ${name}!`
         });
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        user = userCredential.user;
       }
+
+      // Sync with Next.js Middleware via session API
+      const idToken = await getIdToken(user);
+      await fetch('/api/auth/session', {
+        method: 'POST',
+        body: JSON.stringify({ idToken }),
+        headers: { 'Content-Type': 'application/json' }
+      });
+
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -74,8 +85,6 @@ export function LoginForm() {
     setEmail("admin@roleflow.io");
     setPassword("password123");
     setIsSignUp(false);
-    // Note: This requires the user to exist in Firebase Auth already.
-    // For a real prototype, users should create their account first.
   };
 
   return (
