@@ -3,7 +3,7 @@
 
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CalendarCheck, TrendingUp, Sparkles, BrainCircuit } from "lucide-react";
+import { CalendarCheck, TrendingUp, Sparkles, BrainCircuit, Loader2 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
@@ -22,7 +22,7 @@ export function OverviewTab() {
     
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", user.id));
-    } else if (user.role === 'Team Lead' || user.role === 'Manager') {
+    } else if (['Team Lead', 'Manager'].includes(user.role)) {
       q = query(q, where("department", "==", user.department));
     }
     return q;
@@ -31,11 +31,20 @@ export function OverviewTab() {
   const { data: todayAttendance, isLoading: loadingAtt } = useCollection(attendanceQuery);
 
   const usersQuery = useMemoFirebase(() => {
+    // Only authorized roles should even attempt to list users
     if (!user || !['Super Admin', 'Admin', 'Manager', 'Team Lead'].includes(user.role)) return null;
     return query(collection(db, "users"), limit(100));
   }, [db, user]);
 
   const { data: users, isLoading: loadingUsers } = useCollection(usersQuery);
+
+  if (!user) {
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

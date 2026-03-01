@@ -12,8 +12,8 @@ import { TaskManagement } from "@/components/dashboard/TaskManagement";
 import { useAuthStore } from "@/lib/auth-store";
 import { ShieldCheck, Lock, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { useUser, useFirestore, FirebaseClientProvider, useAuth } from "@/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { useUser, useFirestore, FirebaseClientProvider } from "@/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 import { LoginForm } from "@/components/auth/LoginForm";
 
 function DashboardContent() {
@@ -21,35 +21,37 @@ function DashboardContent() {
   const { profile, setProfile } = useAuthStore();
   const db = useFirestore();
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const syncRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (user && !profile && !isSyncing && syncRef.current !== user.uid) {
-      const fetchProfile = async () => {
-        setIsSyncing(true);
-        syncRef.current = user.uid;
-        try {
-          const docRef = doc(db, "users", user.uid);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setProfile(docSnap.data() as any);
-          }
-        } catch (error) {
-          console.error("Profile sync error:", error);
-        } finally {
-          setIsSyncing(false);
-        }
-      };
-      fetchProfile();
+    // If no user, we aren't initializing anymore
+    if (!isUserLoading && !user) {
+      setIsInitializing(false);
+      return;
     }
-  }, [user, profile, db, setProfile, isSyncing]);
 
-  if (isUserLoading) {
+    // Set up real-time sync for profile
+    if (user && syncRef.current !== user.uid) {
+      syncRef.current = user.uid;
+      const unsub = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
+        if (docSnap.exists()) {
+          setProfile(docSnap.data() as any);
+        }
+        setIsInitializing(false);
+      }, (err) => {
+        console.error("Profile sync error:", err);
+        setIsInitializing(false);
+      });
+      return () => unsub();
+    }
+  }, [user, isUserLoading, db, setProfile]);
+
+  if (isUserLoading || (user && isInitializing)) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Validating Credentials</p>
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Validating MNC Credentials</p>
       </div>
     );
   }
@@ -74,15 +76,6 @@ function DashboardContent() {
             </div>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  if (isSyncing || !profile) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
-        <Loader2 className="h-10 w-10 animate-spin text-accent" />
-        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Initializing Profile Sync</p>
       </div>
     );
   }
@@ -125,7 +118,7 @@ function DashboardContent() {
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
                 <p className="text-[9px] font-bold text-muted-foreground uppercase leading-none">Security Level</p>
-                <p className="text-[11px] font-black text-accent uppercase">{profile.role}</p>
+                <p className="text-[11px] font-black text-accent uppercase">{profile?.role || "Synchronizing..."}</p>
               </div>
             </div>
           </header>
