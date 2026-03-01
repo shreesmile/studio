@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -49,12 +48,12 @@ service cloud.firestore {
       allow delete: if isSignedIn() && isSuperior(resource.data.role);
     }
 
-    // Role Existence Markers (Required for hierarchical checks)
+    // Role Existence Markers (Simplified for reliability)
     match /user_roles_Super_Admin/{uid} { allow read, write: if isSignedIn() && getMyWeight() == 5; }
-    match /user_roles_Admin/{uid} { allow read, write: if isSignedIn() && getMyWeight() >= 4; }
-    match /user_roles_Manager/{uid} { allow read, write: if isSignedIn() && getMyWeight() >= 3; }
-    match /user_roles_Team_Lead/{uid} { allow read, write: if isSignedIn() && getMyWeight() >= 2; }
-    match /user_roles_Employee/{uid} { allow read, write: if isSignedIn() && getMyWeight() >= 2; }
+    match /user_roles_Admin/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 4 || request.auth.uid == uid); }
+    match /user_roles_Manager/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 3 || request.auth.uid == uid); }
+    match /user_roles_Team_Lead/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 2 || request.auth.uid == uid); }
+    match /user_roles_Employee/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 2 || request.auth.uid == uid); }
 
     // Attendance Records
     match /attendance/{attendanceId} {
