@@ -36,17 +36,20 @@ service cloud.firestore {
 
     match /attendance/{attendanceId} {
       allow read: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || 
+        (resource != null && resource.data.userId == request.auth.uid) || 
         getMyWeight() >= 4 ||
         (getMyWeight() >= 2 && resource.data.department == getUserData(request.auth.uid).department)
       );
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && (request.resource.data.userId == request.auth.uid || getMyWeight() >= 3);
+      allow update: if isSignedIn() && (
+        (resource != null && resource.data.userId == request.auth.uid) || 
+        getMyWeight() >= 3
+      );
     }
 
     match /leave_requests/{requestId} {
       allow read: if isSignedIn() && (
-        resource.data.userId == request.auth.uid ||
+        (resource != null && resource.data.userId == request.auth.uid) ||
         getMyWeight() >= 4 ||
         (getMyWeight() >= 2 && resource.data.department == getUserData(request.auth.uid).department)
       );
@@ -60,15 +63,15 @@ service cloud.firestore {
 
     match /tasks/{taskId} {
       allow read: if isSignedIn() && (
-        resource.data.assignedToId == request.auth.uid ||
-        resource.data.assignedById == request.auth.uid ||
+        (resource != null && resource.data.assignedToId == request.auth.uid) ||
+        (resource != null && resource.data.assignedById == request.auth.uid) ||
         getMyWeight() >= 4 ||
         (getMyWeight() >= 2 && resource.data.assignedToDepartment == getUserData(request.auth.uid).department)
       );
       allow create: if isSignedIn() && getMyWeight() >= 2;
       allow update: if isSignedIn() && (
-        resource.data.assignedToId == request.auth.uid ||
-        resource.data.assignedById == request.auth.uid ||
+        (resource != null && resource.data.assignedToId == request.auth.uid) ||
+        (resource != null && resource.data.assignedById == request.auth.uid) ||
         getMyWeight() >= 3 ||
         (getMyWeight() >= 2 && resource.data.assignedToDepartment == getUserData(request.auth.uid).department)
       );

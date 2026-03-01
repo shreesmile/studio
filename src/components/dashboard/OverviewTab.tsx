@@ -18,13 +18,13 @@ export function OverviewTab() {
   const today = format(new Date(), "yyyy-MM-dd");
 
   const attendanceQuery = useMemoFirebase(() => {
-    // CRITICAL: Ensure we don't query until profile is synced with Auth UID
-    if (!user || !user.role || !user.id || !authUser || user.id !== authUser.uid) return null;
+    if (!authUser) return null;
     
     let q = query(collection(db, "attendance"), where("date", "==", today));
     
-    if (user.role === 'Employee') {
-      q = query(q, where("userId", "==", user.id));
+    // Strict Guard: Prevent broad list for Employees or if profile is still loading
+    if (!user || user.role === 'Employee' || user.id !== authUser.uid) {
+      q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role) && user.department) {
       q = query(q, where("department", "==", user.department));
     }
@@ -41,7 +41,7 @@ export function OverviewTab() {
 
   const { data: users, isLoading: loadingUsers } = useCollection(usersQuery);
 
-  if (!user || !authUser || user.id !== authUser.uid) {
+  if (!authUser) {
     return (
       <div className="flex justify-center py-20">
         <Loader2 className="animate-spin text-primary" />

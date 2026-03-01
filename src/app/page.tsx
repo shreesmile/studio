@@ -35,7 +35,6 @@ function DashboardContent() {
       return;
     }
 
-    // Only sync if the user has changed
     if (user && syncRef.current !== user.uid) {
       syncRef.current = user.uid;
       setIsInitializing(true);

@@ -26,11 +26,15 @@ export function AttendanceTab() {
   const [notes, setNotes] = useState("");
 
   const attendanceQuery = useMemoFirebase(() => {
-    if (!user || !user.role || !user.id || !authUser || user.id !== authUser.uid) return null;
+    // CRITICAL: Ensure UID sync before list operation. 
+    // If profile is missing, fallback to authUser.uid for security-compliant filtering.
+    if (!authUser) return null;
+    
     let q = query(collection(db, "attendance"));
     
-    if (user.role === 'Employee') {
-      q = query(q, where("userId", "==", user.id));
+    // Strict Guard: If role is Employee or role is not yet loaded, force own-data filter
+    if (!user || user.role === 'Employee' || user.id !== authUser.uid) {
+      q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role)) {
       q = query(q, where("department", "==", user.department));
     }
@@ -41,11 +45,11 @@ export function AttendanceTab() {
   const { data: records, isLoading } = useCollection(attendanceQuery);
 
   const todayRecord = useMemo(() => 
-    records?.find(r => r.date === today && r.userId === user?.id),
-  [records, today, user?.id]);
+    records?.find(r => r.date === today && r.userId === (user?.id || authUser?.uid)),
+  [records, today, user?.id, authUser?.uid]);
 
   const handleClockIn = () => {
-    if (!user || !authUser || user.id !== authUser.uid) return;
+    if (!authUser) return;
     if (!project.trim()) {
       toast({
         variant: "destructive",
@@ -59,9 +63,9 @@ export function AttendanceTab() {
     const isLate = now.getHours() >= 9 && now.getMinutes() > 30;
     
     const record = {
-      userId: user.id,
-      userName: user.name,
-      department: user.department,
+      userId: authUser.uid,
+      userName: user?.name || authUser.email || "Employee",
+      department: user?.department || "Default",
       date: today,
       clockIn: now.toISOString(),
       status: isLate ? "Late" : "Present",
@@ -78,7 +82,7 @@ export function AttendanceTab() {
   };
 
   const handleClockOut = () => {
-    if (!todayRecord || !user || !authUser || user.id !== authUser.uid) return;
+    if (!todayRecord || !authUser) return;
     const now = new Date();
     const clockIn = new Date(todayRecord.clockIn);
     const diffHours = (now.getTime() - clockIn.getTime()) / (1000 * 60 * 60);

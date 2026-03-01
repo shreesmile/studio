@@ -24,13 +24,13 @@ export function LeaveManagement() {
   const [newRequest, setNewRequest] = useState({ startDate: '', endDate: '', reason: '' });
 
   const leaveQuery = useMemoFirebase(() => {
-    // CRITICAL: Ensure UID sync before list operation
-    if (!user || !user.role || !authUser || user.id !== authUser.uid) return null;
+    if (!authUser) return null;
     
     let q = query(collection(db, "leave_requests"));
     
-    if (user.role === 'Employee') {
-      q = query(q, where("userId", "==", user.id));
+    // Strict Guard: Prevent broad list for Employees or if profile is still loading
+    if (!user || user.role === 'Employee' || user.id !== authUser.uid) {
+      q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role) && user.department) {
       q = query(q, where("department", "==", user.department));
     }
@@ -42,12 +42,12 @@ export function LeaveManagement() {
 
   const handleRequestSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !authUser || user.id !== authUser.uid) return;
+    if (!authUser) return;
 
     const requestData = {
-      userId: user.id,
-      userName: user.name,
-      department: user.department,
+      userId: authUser.uid,
+      userName: user?.name || authUser.email || "Employee",
+      department: user?.department || "Default",
       ...newRequest,
       status: 'Pending',
       createdAt: serverTimestamp(),
@@ -63,7 +63,7 @@ export function LeaveManagement() {
   const handleAction = (requestId: string, status: 'Approved' | 'Rejected') => {
     updateDocumentNonBlocking(doc(db, "leave_requests", requestId), {
       status,
-      approvedBy: user?.name,
+      approvedBy: user?.name || "Administrator",
       updatedAt: serverTimestamp()
     });
     toast({ title: `Application ${status}`, description: "The status has been updated successfully." });
