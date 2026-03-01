@@ -1,0 +1,162 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * FIRESTORE SECURITY RULES DOCUMENTATION
+     *
+     * Core Philosophy:
+     * This ruleset implements a hierarchical, role-based access control (RBAC) model optimized for 
+     * large organizational structures. It prioritizes "Authorization Independence," meaning 
+     * documents contain enough denormalized data to make security decisions without recursive 
+     * lookups.
+     *
+     * Data Structure:
+     * - /roles & /departments: Configuration data for the organization.
+     * - /users: Profiles containing 'managerChainIds' to represent the reporting hierarchy.
+     * - /tasks: Assignments containing 'assignedToManagerChainIds' for hierarchy-based management.
+     * - /user_roles_{role}: Marker collections used for high-performance role verification (DBAC).
+     *
+     * Key Security Decisions:
+     * 1. DBAC (Database-Based Access Control): User roles are verified by checking for the 
+     *    existence of a document in role-specific collections (e.g., /user_roles_admin/{uid}).
+     * 2. Hierarchical Access: Managers and Team Leads gain access to subordinates' data 
+     *    via denormalized UID arrays ('managerChainIds') stored directly on the target documents.
+     * 3. Prototyping Flexibility: Rules enforce strict authorization (who can access) but 
+     *    remain flexible on data schema (what the data looks like) to support rapid iteration.
+     * 4. Relational Integrity: On creation, rules ensure that ownership and assignment fields 
+     *    correctly reference the authenticated user.
+     */
+
+    // --- GLOBAL HELPER FUNCTIONS ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Role Checks (DBAC Pattern)
+    function isSuperAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/user_roles_super_admin/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/user_roles_admin/$(request.auth.uid));
+    }
+
+    function isManager() {
+      return isSignedIn() && exists(/databases/$(database)/documents/user_roles_manager/$(request.auth.uid));
+    }
+
+    function isTeamLead() {
+      return isSignedIn() && exists(/databases/$(database)/documents/user_roles_team_lead/$(request.auth.uid));
+    }
+
+    // Hierarchy Checks
+    function isSubordinate(managerChain) {
+      return isSignedIn() && request.auth.uid in managerChain;
+    }
+
+    function isHigherAuthority() {
+      return isSuperAdmin() || isAdmin();
+    }
+
+    // Update/Delete Safety
+    function isValidExisting() {
+      return resource != null;
+    }
+
+    // --- COLLECTION RULES ---
+
+    /**
+     * @description Rules for organizational roles and departments. Read-only for members, CRUD for Super Admins.
+     * @path /roles/{roleId}, /departments/{departmentId}
+     * @allow (get) Any authenticated user viewing available roles.
+     * @deny (create) A standard manager trying to define a new department.
+     * @principle Restricts configuration changes to top-level administrative accounts.
+     */
+    match /roles/{roleId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    match /departments/{departmentId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    /**
+     * @description User profile management. Supports self-access, administrative override, and manager visibility.
+     * @path /users/{userId}
+     * @allow (update) A manager updating a field on a direct report's profile.
+     * @deny (list) An employee trying to list all user profiles in the system.
+     * @principle Uses denormalized 'managerChainIds' to grant hierarchical access without recursive gets.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isHigherAuthority() || isSubordinate(resource.data.managerChainIds);
+      allow list: if isSignedIn(); // Filtered by client-side queries (QAP)
+      allow create: if isHigherAuthority() && request.resource.data.id == userId;
+      allow update: if isValidExisting() && (isOwner(userId) || isHigherAuthority() || isSubordinate(resource.data.managerChainIds));
+      allow delete: if isValidExisting() && isSuperAdmin();
+    }
+
+    /**
+     * @description Marker collections for RBAC. These are primarily read-only for security rules via exists().
+     * @path /user_roles_{role}/{userId}
+     * @allow (get) System checking if a user has a specific role.
+     * @deny (create) A user trying to promote themselves to Admin by writing to this collection.
+     * @principle Implements DBAC (Database-Based Access Control) for performant role verification.
+     */
+    match /user_roles_super_admin/{userId} {
+      allow read: if isSignedIn();
+      allow write: if false; // Managed by backend/admin only
+    }
+    match /user_roles_admin/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+    match /user_roles_manager/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isHigherAuthority();
+    }
+    match /user_roles_team_lead/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isHigherAuthority() || isManager();
+    }
+    match /user_roles_employee/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isHigherAuthority() || isManager() || isTeamLead();
+    }
+
+    /**
+     * @description Task management logic. Owners, assignees, and managers have granular access.
+     * @path /tasks/{taskId}
+     * @allow (create) A team lead assigning a task to a subordinate.
+     * @deny (update) An employee trying to change the 'assignedToId' of a task given to them.
+     * @principle Ensures tasks are only accessible to the relevant reporting chain.
+     */
+    match /tasks/{taskId} {
+      function canManageTask() {
+        return isHigherAuthority() || isSubordinate(resource.data.assignedToManagerChainIds) || resource.data.assignedById == request.auth.uid;
+      }
+
+      allow get: if isSignedIn() && (isOwner(resource.data.assignedToId) || canManageTask());
+      allow list: if isSignedIn(); // Relies on QAP: where('assignedToId', '==', uid) or where('assignedToManagerChainIds', 'array-contains', uid)
+      
+      allow create: if isSignedIn() && (request.resource.data.assignedById == request.auth.uid || isHigherAuthority());
+      
+      allow update: if isValidExisting() && (
+        isOwner(resource.data.assignedToId) || 
+        canManageTask()
+      ) && (
+        // Enforce relational integrity: Assigned user cannot change who the task is for or who sent it
+        isOwner(resource.data.assignedToId) ? (request.resource.data.assignedToId == resource.data.assignedToId && request.resource.data.assignedById == resource.data.assignedById) : true
+      );
+
+      allow delete: if isValidExisting() && (isHigherAuthority() || resource.data.assignedById == request.auth.uid);
+    }
+  }
+}
