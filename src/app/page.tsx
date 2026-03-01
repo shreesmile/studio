@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { 
   SidebarProvider, 
   SidebarInset, 
@@ -12,14 +12,18 @@ import { OverviewTab } from "@/components/dashboard/OverviewTab";
 import { UserManagement } from "@/components/dashboard/UserManagement";
 import { TaskManagement } from "@/components/dashboard/TaskManagement";
 import { useAuthStore, UserRole } from "@/lib/auth-store";
-import { ShieldCheck, Lock, LayoutDashboard, Loader2 } from "lucide-react";
+import { ShieldCheck, Lock, LayoutDashboard, Loader2, LogOut, RefreshCcw } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useUser, useFirestore, FirebaseClientProvider } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { Button } from "@/components/ui/button";
+import { signOut } from "firebase/auth";
+import { useAuth } from "@/firebase";
 
 function DashboardContent() {
   const { user, isUserLoading } = useUser();
+  const auth = useAuth();
   const { profile, setProfile, logout: clearStore } = useAuthStore();
   const db = useFirestore();
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -30,7 +34,6 @@ function DashboardContent() {
   useEffect(() => {
     let isMounted = true;
     
-    // Only attempt sync if we have a user, no profile, and haven't tried for this specific UID yet in this session
     if (user && !profile && !isSyncing && syncAttemptedFor.current !== user.uid) {
       const fetchProfile = async () => {
         setIsSyncing(true);
@@ -54,45 +57,84 @@ function DashboardContent() {
     }
     
     return () => { isMounted = false; };
-  }, [user, profile, db, setProfile, clearStore]); // Removed isSyncing from dependencies to prevent loop
+  }, [user, profile, db, setProfile, clearStore]);
 
   // Tab permission check
   useEffect(() => {
     if (profile) {
-      const adminRoles: UserRole[] = ['Super Admin', 'Admin'];
+      const adminRoles: UserRole[] = ['Super Admin', 'Admin', 'Manager', 'Team Lead'];
       if (activeTab === 'users' && !adminRoles.includes(profile.role)) {
         setActiveTab('dashboard');
       }
     }
   }, [profile, activeTab]);
 
-  if (isUserLoading || (user && !profile && isSyncing)) {
+  const handleManualLogout = async () => {
+    await signOut(auth);
+    await fetch('/api/auth/session', { method: 'POST', body: JSON.stringify({ idToken: null }) });
+    clearStore();
+    syncAttemptedFor.current = null;
+  };
+
+  // 1. Initial Auth Loading
+  if (isUserLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-background gap-4">
-        <div className="relative">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <ShieldCheck className="h-4 w-4 text-primary" />
-          </div>
+      <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="text-sm font-semibold text-muted-foreground">Verifying credentials...</p>
+      </div>
+    );
+  }
+
+  // 2. Authenticated but Profile Syncing (or missing)
+  if (user && !profile) {
+    if (isSyncing) {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
+          <Loader2 className="h-10 w-10 animate-spin text-accent" />
+          <p className="text-sm font-semibold text-muted-foreground">Initializing profile...</p>
         </div>
-        <div className="text-center space-y-1">
-          <p className="text-sm font-semibold text-foreground">Synchronizing role hierarchy...</p>
-          <p className="text-xs text-muted-foreground animate-pulse">Establishing secure session</p>
+      );
+    }
+    
+    // If we tried to sync and failed to find a profile
+    return (
+      <div className="min-h-screen bg-[#ECF1F4] flex flex-col items-center justify-center p-6 text-center">
+        <div className="bg-white p-10 rounded-3xl shadow-xl max-w-md w-full space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto">
+            <RefreshCcw className="text-destructive w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold text-foreground">Profile Not Synchronized</h2>
+            <p className="text-sm text-muted-foreground">
+              We found your account but couldn't retrieve your role assignment. This might happen if your profile is still being created.
+            </p>
+          </div>
+          <div className="pt-4 flex flex-col gap-3">
+            <Button onClick={() => window.location.reload()} className="w-full h-12">
+              Retry Synchronization
+            </Button>
+            <Button variant="ghost" onClick={handleManualLogout} className="w-full text-muted-foreground">
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (!user || !profile) {
+  // 3. Not Authenticated
+  if (!user) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 bg-[#ECF1F4]">
+      <div className="min-h-screen bg-[#ECF1F4] flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full space-y-8 text-center">
           <div className="flex flex-col items-center">
             <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg mb-6">
               <ShieldCheck className="text-white w-10 h-10" />
             </div>
             <h1 className="text-4xl font-headline font-extrabold text-primary tracking-tight">RoleFlow</h1>
-            <p className="mt-2 text-muted-foreground font-body text-balance">Professional RBAC Management Platform</p>
+            <p className="mt-2 text-muted-foreground font-body">Professional RBAC Management Platform</p>
           </div>
 
           <div className="bg-white p-8 rounded-3xl shadow-xl border border-white space-y-6">
@@ -140,9 +182,9 @@ function DashboardContent() {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen w-full bg-[#ECF1F4]">
         <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} />
-        <SidebarInset className="bg-[#ECF1F4]">
+        <SidebarInset className="bg-transparent">
           <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b bg-background/80 backdrop-blur-md px-6">
             <div className="flex items-center gap-4">
               <SidebarTrigger className="-ml-1" />
@@ -154,11 +196,11 @@ function DashboardContent() {
             <div className="flex items-center gap-2">
               <div className="text-right hidden sm:block">
                 <span className="text-[10px] font-medium text-muted-foreground">Connected as</span>
-                <span className="ml-1 text-[10px] font-bold text-accent uppercase">{profile.role}</span>
+                <span className="ml-1 text-[10px] font-bold text-accent uppercase">{profile?.role}</span>
               </div>
             </div>
           </header>
-          <main className="flex-1 p-8 max-w-7xl mx-auto w-full">
+          <main className="flex-1 p-8 max-w-7xl mx-auto w-full animate-fade-in">
             {renderContent()}
           </main>
         </SidebarInset>

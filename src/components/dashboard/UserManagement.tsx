@@ -15,13 +15,11 @@ import {
   DropdownMenuContent, 
   DropdownMenuItem, 
   DropdownMenuLabel, 
-  DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { 
   Dialog, 
   DialogContent, 
-  DialogDescription, 
   DialogFooter, 
   DialogHeader, 
   DialogTitle 
@@ -65,7 +63,7 @@ interface UserData {
   name: string;
   email: string;
   role: UserRole;
-  department: string;
+  department?: string;
   password?: string;
   createdAt?: any;
 }
@@ -188,7 +186,7 @@ export function UserManagement() {
   };
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <div className="relative w-full sm:w-80">
@@ -203,7 +201,7 @@ export function UserManagement() {
           <Button 
             variant="outline" 
             size="icon" 
-            className="shrink-0"
+            className="shrink-0 bg-white"
             onClick={() => setShowPasswords(!showPasswords)}
           >
             {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -294,7 +292,7 @@ export function UserManagement() {
             <div className="grid gap-2">
               <Label htmlFor="u-role">Assign Role</Label>
               <Select 
-                disabled={modalMode === 'view' || currentUser?.role === 'Employee'} 
+                disabled={modalMode === 'view' || (currentUser?.role !== 'Super Admin' && currentUser?.role !== 'Admin')} 
                 value={formData.role} 
                 onValueChange={(val: UserRole) => setFormData({ ...formData, role: val })}
               >
