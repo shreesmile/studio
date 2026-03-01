@@ -31,7 +31,7 @@ export function AttendanceTab() {
     let q = query(collection(db, "attendance"));
     
     // Strict Guard: Force own-data filter if user is Employee or role is not yet confirmed
-    // This is critical to satisfy Firestore Security Rules during sync.
+    // This matches Firestore Security Rules for 'list' operations
     if (!user || user.role === 'Employee' || user.id !== authUser.uid) {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role)) {

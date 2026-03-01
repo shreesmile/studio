@@ -23,6 +23,7 @@ export function OverviewTab() {
     let q = query(collection(db, "attendance"), where("date", "==", today));
     
     // Strict Guard: Prevent broad list for Employees or if profile is still loading/mismatched
+    // Employees must be filtered by userId to satisfy Security Rules
     if (!user || user.role === 'Employee' || user.id !== authUser.uid) {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role) && user.department) {

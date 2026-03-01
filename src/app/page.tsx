@@ -36,7 +36,6 @@ function DashboardContent() {
     }
 
     // Only initiate synchronization if the authenticated user has changed
-    // or if the profile is missing/mismatched.
     if (user && syncRef.current !== user.uid) {
       syncRef.current = user.uid;
       setIsInitializing(true);
@@ -54,14 +53,17 @@ function DashboardContent() {
       return () => {
         unsub();
       };
+    } else if (user && profile && profile.id === user.uid) {
+      // Already synced
+      setIsInitializing(false);
     }
-  }, [user, isUserLoading, db, setProfile, clearProfile]);
+  }, [user, isUserLoading, db, setProfile, clearProfile, profile]);
 
   const handleTabChange = useCallback((id: string) => {
     setActiveTab(id);
   }, []);
 
-  // Strict check to ensure we only render the dashboard when auth and profile are aligned
+  // Guard: Show loader if auth is loading or profile is not yet aligned with UID
   if (isUserLoading || (user && (isInitializing || !profile || profile.id !== user.uid))) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
