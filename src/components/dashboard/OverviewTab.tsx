@@ -1,8 +1,9 @@
+
 "use client";
 
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Clock, Users, CalendarCheck, TrendingUp, Sparkles, BrainCircuit } from "lucide-react";
+import { CalendarCheck, TrendingUp, Sparkles, BrainCircuit } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
@@ -19,7 +20,6 @@ export function OverviewTab() {
     if (!user) return null;
     let q = query(collection(db, "attendance"), where("date", "==", today));
     
-    // Strict scoping for Employee to prevent permission errors
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", user.id));
     } else if (user.role === 'Team Lead' || user.role === 'Manager') {
@@ -30,7 +30,6 @@ export function OverviewTab() {
 
   const { data: todayAttendance, isLoading: loadingAtt } = useCollection(attendanceQuery);
 
-  // Guarded query for users - only for Team Lead and above
   const usersQuery = useMemoFirebase(() => {
     if (!user || !['Super Admin', 'Admin', 'Manager', 'Team Lead'].includes(user.role)) return null;
     return query(collection(db, "users"), limit(100));

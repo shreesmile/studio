@@ -1,14 +1,12 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // --- HELPERS ---
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Explicit Level System (MNC Compliance)
     function getLevel(role) {
       return role == 'Super Admin' ? 5 :
              role == 'Admin' ? 4 :
@@ -29,64 +27,41 @@ service cloud.firestore {
       return getMyWeight() > getLevel(targetRole);
     }
 
-    // --- RULES ---
-
-    // Primary User Directory
     match /users/{userId} {
       allow get: if isSignedIn();
-      // Only Admin and above, or Team Lead/Manager for their department, can list users
-      allow list: if isSignedIn() && (getMyWeight() >= 2);
-      
-      allow create: if isSignedIn() && (
-        (request.auth.uid == userId) || 
-        isSuperior(request.resource.data.role)
-      );
-      
+      allow list: if isSignedIn() && getMyWeight() >= 2;
+      allow create: if isSignedIn() && (request.auth.uid == userId || isSuperior(request.resource.data.role));
       allow update: if isSignedIn() && (
         (request.auth.uid == userId && request.resource.data.role == resource.data.role) ||
         isSuperior(resource.data.role)
       );
-      
       allow delete: if isSignedIn() && isSuperior(resource.data.role);
     }
 
-    // Attendance Records
     match /attendance/{attendanceId} {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
         getMyWeight() >= 4 ||
         (getMyWeight() >= 2 && resource.data.department == getUserData(request.auth.uid).department)
       );
-      
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      
-      allow update: if isSignedIn() && (
-        request.resource.data.userId == request.auth.uid ||
-        getMyWeight() >= 3
-      );
+      allow update: if isSignedIn() && (request.resource.data.userId == request.auth.uid || getMyWeight() >= 3);
     }
 
-    // Leave Requests
     match /leave_requests/{requestId} {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
         getMyWeight() >= 4 ||
         (getMyWeight() >= 2 && resource.data.department == getUserData(request.auth.uid).department)
       );
-      
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      
       allow update: if isSignedIn() && (
         (getMyWeight() >= 3 && resource.data.department == getUserData(request.auth.uid).department) ||
-        (getMyWeight() == 5)
+        getMyWeight() == 5
       );
-      
-      allow delete: if isSignedIn() && (
-        resource.data.userId == request.auth.uid && resource.data.status == 'Pending'
-      );
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid && resource.data.status == 'Pending';
     }
 
-    // Tasks Management
     match /tasks/{taskId} {
       allow read: if isSignedIn() && (
         resource.data.assignedToId == request.auth.uid ||
@@ -94,19 +69,15 @@ service cloud.firestore {
         getMyWeight() >= 4 ||
         (getMyWeight() >= 2 && resource.data.assignedToDepartment == getUserData(request.auth.uid).department)
       );
-      
       allow create: if isSignedIn() && isSuperior(request.resource.data.assignedToRole);
-      
       allow update: if isSignedIn() && (
         resource.data.assignedToId == request.auth.uid ||
         resource.data.assignedById == request.auth.uid ||
         isSuperior(resource.data.assignedToRole)
       );
-      
       allow delete: if isSignedIn() && isSuperior(resource.data.assignedToRole);
     }
 
-    // Internal Role Markers
     match /user_roles_Super_Admin/{uid} { allow read, write: if isSignedIn() && getMyWeight() == 5; }
     match /user_roles_Admin/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 4 || request.auth.uid == uid); }
     match /user_roles_Manager/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 3 || request.auth.uid == uid); }

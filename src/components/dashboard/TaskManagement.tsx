@@ -1,48 +1,21 @@
+
 "use client";
 
 import React, { useState } from "react";
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { 
-  Plus,
-  Calendar,
-  Filter,
-  User,
-  Loader2,
-  Settings2
-} from "lucide-react";
+import { Plus, Calendar, Filter, User, Loader2, Settings2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore, UserRole } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { collection, query, where, serverTimestamp, doc } from "firebase/firestore";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle 
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const ROLE_POWER: Record<UserRole, number> = {
   'Super Admin': 4,
@@ -82,8 +55,6 @@ export function TaskManagement() {
   const { data: allTasks, isLoading } = useCollection(tasksRef);
   const tasks = allTasks?.filter(t => filterStatus === 'all' || t.status === filterStatus) || [];
 
-  // FIX: Only list users if the current user has the power to assign tasks
-  // Employees cannot list users per security rules
   const usersRef = useMemoFirebase(() => {
     if (!currentUser || currentUser.role === 'Employee') return null;
     return collection(db, "users");
@@ -95,7 +66,6 @@ export function TaskManagement() {
     if (!currentUser || u.id === currentUser.id) return false;
     const myPower = ROLE_POWER[currentUser.role];
     const targetPower = ROLE_POWER[u.role];
-
     if (currentUser.role === 'Super Admin') return true;
     if (currentUser.role === 'Admin') return targetPower <= 2; 
     if (currentUser.role === 'Manager') return targetPower <= 1 && u.department === currentUser.department; 
@@ -195,9 +165,6 @@ export function TaskManagement() {
                   <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground">
                     <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {task.deadline}</span>
                     <span className="flex items-center gap-1"><User className="h-3 w-3" /> {allUsers?.find(u => u.id === task.assignedToId)?.name || 'N/A'}</span>
-                  </div>
-                  <div className="text-[9px] uppercase font-medium text-primary/60">
-                    Dept: {task.assignedToDepartment} • By: {task.assignedByName} ({task.assignedByRole})
                   </div>
                 </div>
               </CardContent>

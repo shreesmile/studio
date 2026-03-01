@@ -15,39 +15,34 @@ import { Separator } from "@/components/ui/separator";
 import { useUser, useFirestore, FirebaseClientProvider, useAuth } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { LoginForm } from "@/components/auth/LoginForm";
-import { signOut } from "firebase/auth";
 
 function DashboardContent() {
   const { user, isUserLoading } = useUser();
-  const auth = useAuth();
-  const { profile, setProfile, logout: clearStore } = useAuthStore();
+  const { profile, setProfile } = useAuthStore();
   const db = useFirestore();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isSyncing, setIsSyncing] = useState(false);
-  const syncAttemptedFor = useRef<string | null>(null);
+  const syncRef = useRef<string | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
-    if (user && !profile && !isSyncing && syncAttemptedFor.current !== user.uid) {
+    if (user && !profile && !isSyncing && syncRef.current !== user.uid) {
       const fetchProfile = async () => {
-        if (!isMounted) return;
         setIsSyncing(true);
-        syncAttemptedFor.current = user.uid;
+        syncRef.current = user.uid;
         try {
           const docRef = doc(db, "users", user.uid);
           const docSnap = await getDoc(docRef);
-          if (docSnap.exists() && isMounted) {
+          if (docSnap.exists()) {
             setProfile(docSnap.data() as any);
           }
         } catch (error) {
           console.error("Profile sync error:", error);
         } finally {
-          if (isMounted) setIsSyncing(false);
+          setIsSyncing(false);
         }
       };
       fetchProfile();
     }
-    return () => { isMounted = false; };
   }, [user, profile, db, setProfile, isSyncing]);
 
   if (isUserLoading) {
