@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, limit, where } from "firebase/firestore";
 import { format } from "date-fns";
+import { Badge } from "@/components/ui/badge";
 
 export function OverviewTab() {
   const { profile: user } = useAuthStore();
