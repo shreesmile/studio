@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -8,7 +7,6 @@ import {
   CheckSquare,
   BarChart3,
   ShieldCheck,
-  Settings,
   LogOut,
   Briefcase
 } from "lucide-react";
@@ -46,11 +44,11 @@ const navItems: NavItem[] = [
     id: "users",
     title: "User Management",
     icon: Users,
-    roles: ["Super Admin", "Admin"],
+    roles: ["Super Admin", "Admin", "Manager", "Team Lead"],
   },
   {
     id: "tasks",
-    title: "Task Management",
+    title: "Task Board",
     icon: CheckSquare,
     roles: ["Super Admin", "Admin", "Manager", "Team Lead", "Employee"],
   },
@@ -75,7 +73,6 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
 
   const handleLogout = async () => {
     await signOut(auth);
-    // Clear the middleware session
     await fetch('/api/auth/session', { method: 'POST', body: JSON.stringify({ idToken: null }) });
     clearStore();
   };

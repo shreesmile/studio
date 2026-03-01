@@ -3,8 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * FIRESTORE SECURITY RULES
-     * Optimized for Role-Based Access Control (RBAC).
+     * FIRESTORE SECURITY RULES - STRICT HIERARCHICAL RBAC
      */
 
     // --- GLOBAL HELPER FUNCTIONS ---
@@ -17,8 +16,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Role Checks (DBAC Pattern with Profile Fallback)
-    // We check for document existence in role collections OR fallback to the role field in the user profile.
+    function getRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+    }
+
     function hasRole(roleName) {
       let roleDoc = roleName.lower().replace(" ", "_");
       return isSignedIn() && (
@@ -28,72 +29,77 @@ service cloud.firestore {
       );
     }
 
-    function isSuperAdmin() {
-      return hasRole('Super Admin');
-    }
+    // Role Definition Helpers
+    function isSuperAdmin() { return hasRole('Super Admin'); }
+    function isAdmin() { return isSuperAdmin() || hasRole('Admin'); }
+    function isManager() { return isAdmin() || hasRole('Manager'); }
+    function isTeamLead() { return isManager() || hasRole('Team Lead'); }
+    function isEmployee() { return hasRole('Employee'); }
 
-    function isAdmin() {
-      return isSuperAdmin() || hasRole('Admin');
-    }
-
-    function isManager() {
-      return isAdmin() || hasRole('Manager');
-    }
-
-    function isTeamLead() {
-      return isManager() || hasRole('Team Lead');
+    // Management Hierarchy Logic
+    // Validates if the request.auth.uid can perform actions on targetUserId
+    function canManageUser(targetUserId) {
+      let callerRole = getRole(request.auth.uid);
+      let targetRole = getRole(targetUserId);
+      
+      return isSuperAdmin() || 
+             (hasRole('Admin') && targetRole != 'Super Admin') ||
+             (hasRole('Manager') && (targetRole == 'Team Lead' || targetRole == 'Employee')) ||
+             (hasRole('Team Lead') && targetRole == 'Employee');
     }
 
     // --- COLLECTION RULES ---
 
-    match /roles/{roleId} {
-      allow get, list: if isSignedIn();
-      allow write: if isSuperAdmin();
-    }
-
-    match /departments/{departmentId} {
-      allow get, list: if isSignedIn();
-      allow write: if isSuperAdmin();
-    }
-
     match /users/{userId} {
-      // Allow user to read/create/update their OWN profile
-      // Allow Admins to manage ALL profiles
-      allow get: if isOwner(userId) || isAdmin();
+      allow get: if isOwner(userId) || canManageUser(userId);
       allow list: if isSignedIn();
-      allow create, update: if isOwner(userId) || isAdmin();
-      allow delete: if isSuperAdmin();
+      
+      // Profiles can be created during sign-up (isOwner) or by authorized managers
+      allow create: if isOwner(userId) || isAdmin();
+      
+      allow update: if isOwner(userId) || canManageUser(userId);
+      
+      // Only Super Admins can truly delete, or Admins if it's not a Super Admin
+      allow delete: if isSuperAdmin() || (hasRole('Admin') && getRole(userId) != 'Super Admin');
     }
 
     // Role Assignment Collections (DBAC)
-    // Allow users to write their OWN role document (essential for registration)
-    // Allow Admins to manage others' roles
     match /user_roles_super_admin/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId) || isSuperAdmin(); 
+      allow write: if isSuperAdmin(); 
     }
     match /user_roles_admin/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId) || isSuperAdmin();
+      allow write: if isSuperAdmin();
     }
     match /user_roles_manager/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId) || isAdmin();
+      allow write: if isAdmin();
     }
     match /user_roles_team_lead/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId) || isManager();
+      allow write: if isManager();
     }
     match /user_roles_employee/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId) || isTeamLead();
+      allow write: if isTeamLead();
     }
 
     match /tasks/{taskId} {
+      // Employees see only their tasks. Managers/Leads see tasks they assigned or assigned to their reports.
       allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      
+      // Employees cannot create tasks. Team Leads and above can.
+      allow create: if isTeamLead();
+      
+      // Owners can update status. Assigners or higher roles can update details.
       allow update: if isSignedIn();
+      
+      // Only Admins or the person who assigned it can delete.
       allow delete: if isAdmin() || (resource != null && resource.data.assignedById == request.auth.uid);
     }
+
+    match /roles/{roleId} { allow read: if isSignedIn(); allow write: if isSuperAdmin(); }
+    match /departments/{departmentId} { allow read: if isSignedIn(); allow write: if isSuperAdmin(); }
   }
 }

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from "react";
@@ -18,28 +17,83 @@ import {
 import { Button } from "@/components/ui/button";
 import { 
   CheckCircle2, 
-  Clock, 
-  AlertCircle, 
-  MoreVertical, 
   Plus,
   Calendar,
-  Filter
+  Filter,
+  User,
+  MoreVertical,
+  Loader2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/lib/auth-store";
-
-const mockTasks = [
-  { id: '1', title: 'Security Audit', description: 'Complete annual system security review.', status: 'blocked', priority: 'high', deadline: '2024-06-15', assignedTo: 'Charlie' },
-  { id: '2', title: 'Feature: AI Insights', description: 'Integrate Genkit flow for analytics.', status: 'in-progress', priority: 'medium', deadline: '2024-06-20', assignedTo: 'Diana' },
-  { id: '3', title: 'Onboard New Interns', description: 'Set up development environments.', status: 'pending', priority: 'low', deadline: '2024-06-25', assignedTo: 'Bob' },
-  { id: '4', title: 'Database Migration', description: 'Migrate legacy data to new schema.', status: 'completed', priority: 'high', deadline: '2024-06-10', assignedTo: 'Alice' },
-];
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from "@/firebase";
+import { collection, query, where, serverTimestamp } from "firebase/firestore";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle,
+  DialogFooter
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 
 export function TaskManagement() {
-  const { profile: user } = useAuthStore();
+  const { profile: currentUser } = useAuthStore();
+  const db = useFirestore();
+  const { toast } = useToast();
   const [filterStatus, setFilterStatus] = useState("all");
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const canCreate = user?.role !== 'Employee';
+  // Task Fetching Logic
+  const tasksRef = useMemoFirebase(() => {
+    let q = query(collection(db, "tasks"));
+    if (currentUser?.role === 'Employee') {
+      q = query(q, where("assignedToId", "==", currentUser.id));
+    }
+    return q;
+  }, [db, currentUser]);
+  
+  const { data: tasks, isLoading } = useCollection(tasksRef);
+
+  // Subordinates for Assignment
+  const reportsRef = useMemoFirebase(() => query(collection(db, "users")), [db]);
+  const { data: allUsers } = useCollection(reportsRef);
+
+  const subordinates = allUsers?.filter(u => {
+    if (currentUser?.role === 'Super Admin') return true;
+    if (currentUser?.role === 'Admin') return u.role !== 'Super Admin';
+    if (currentUser?.role === 'Manager') return u.role === 'Team Lead' || u.role === 'Employee';
+    if (currentUser?.role === 'Team Lead') return u.role === 'Employee';
+    return false;
+  }) || [];
+
+  const [newTask, setNewTask] = useState({
+    title: '',
+    description: '',
+    assignedToId: '',
+    deadline: ''
+  });
+
+  const handleCreateTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+
+    const taskData = {
+      ...newTask,
+      status: 'pending',
+      assignedById: currentUser.id,
+      assignedByName: currentUser.name,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    addDocumentNonBlocking(collection(db, "tasks"), taskData);
+    setIsCreateModalOpen(false);
+    toast({ title: "Task Assigned", description: "The task has been successfully dispatched." });
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -49,6 +103,8 @@ export function TaskManagement() {
       default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
+
+  const canCreate = currentUser?.role !== 'Employee';
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -60,66 +116,81 @@ export function TaskManagement() {
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="all">All Tasks</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="in-progress">In Progress</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="blocked">Blocked</SelectItem>
             </SelectContent>
           </Select>
         </div>
         {canCreate && (
-          <Button className="bg-primary hover:bg-primary/90">
+          <Button onClick={() => setIsCreateModalOpen(true)} className="bg-primary">
             <Plus className="mr-2 h-4 w-4" />
-            Create Task
+            Assign New Task
           </Button>
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-        {mockTasks.map((task) => (
-          <Card key={task.id} className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-start justify-between pb-2 space-y-0">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
+      {isLoading ? (
+        <div className="flex justify-center py-20"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {tasks?.map((task) => (
+            <Card key={task.id} className="hover:shadow-md transition-shadow">
+              <CardHeader className="flex flex-row items-start justify-between pb-2">
+                <div className="space-y-1">
                   <Badge variant="outline" className={getStatusColor(task.status)}>
                     {task.status.toUpperCase()}
                   </Badge>
-                  <Badge variant="secondary" className="text-[10px]">
-                    {task.priority.toUpperCase()}
-                  </Badge>
+                  <CardTitle className="text-lg">{task.title}</CardTitle>
                 </div>
-                <CardTitle className="text-lg">{task.title}</CardTitle>
-              </div>
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                {task.description}
-              </p>
-              <div className="flex items-center justify-between text-xs pt-4 border-t">
-                <div className="flex items-center gap-4 text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {task.deadline}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Assigned: {task.assignedTo}
-                  </span>
+                <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{task.description}</p>
+                <div className="flex items-center justify-between text-xs pt-4 border-t">
+                  <div className="flex items-center gap-4 text-muted-foreground">
+                    <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{task.deadline}</span>
+                    <span className="flex items-center gap-1"><User className="h-3 w-3" />{allUsers?.find(u => u.id === task.assignedToId)?.name || 'Unknown'}</span>
+                  </div>
                 </div>
-                {user?.role === 'Employee' && (
-                  <Button variant="outline" size="sm" className="h-7 text-xs">
-                    Update Progress
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>NEW TASK ASSIGNMENT</DialogTitle></DialogHeader>
+          <form onSubmit={handleCreateTask} className="space-y-4">
+            <div className="grid gap-2">
+              <Label>Task Title</Label>
+              <Input required value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Description</Label>
+              <Textarea value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Assign To Subordinate</Label>
+              <Select required value={newTask.assignedToId} onValueChange={val => setNewTask({...newTask, assignedToId: val})}>
+                <SelectTrigger><SelectValue placeholder="Select team member" /></SelectTrigger>
+                <SelectContent>
+                  {subordinates.map(u => (
+                    <SelectItem key={u.id} value={u.id}>{u.name} ({u.role})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Deadline</Label>
+              <Input type="date" required value={newTask.deadline} onChange={e => setNewTask({...newTask, deadline: e.target.value})} />
+            </div>
+            <DialogFooter><Button type="submit">Deploy Task</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
