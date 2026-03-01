@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Role": {
@@ -136,20 +135,35 @@
         },
         "status": {
           "type": "string",
-          "description": "The current status (e.g., 'Pending', 'In Progress', 'Completed')."
+          "description": "The current status (e.g., 'pending', 'in-progress', 'completed')."
         },
         "deadline": {
           "type": "string",
-          "description": "Target completion date.",
-          "format": "date-time"
+          "description": "Target completion date."
         },
         "assignedToId": {
           "type": "string",
           "description": "ID of the user assigned to this task."
         },
+        "assignedToRole": {
+          "type": "string",
+          "description": "Role of the user assigned to this task (for hierarchy filtering)."
+        },
+        "assignedToDepartment": {
+          "type": "string",
+          "description": "Department of the user assigned to this task (for team filtering)."
+        },
         "assignedById": {
           "type": "string",
           "description": "ID of the user who assigned this task."
+        },
+        "assignedByRole": {
+          "type": "string",
+          "description": "Role of the user who assigned this task."
+        },
+        "assignedByName": {
+          "type": "string",
+          "description": "Name of the user who assigned this task."
         },
         "createdAt": {
           "type": "string",
@@ -169,6 +183,9 @@
         "status",
         "assignedToId",
         "assignedById",
+        "assignedByRole",
+        "assignedToRole",
+        "assignedToDepartment",
         "createdAt",
         "updatedAt"
       ]

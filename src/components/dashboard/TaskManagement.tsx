@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from "react";
@@ -17,14 +16,13 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { 
-  CheckCircle2, 
   Plus,
   Calendar,
   Filter,
   User,
-  MoreVertical,
   Loader2,
-  Settings2
+  Settings2,
+  Briefcase
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/lib/auth-store";
@@ -46,7 +44,6 @@ import {
   DropdownMenuContent, 
   DropdownMenuItem, 
   DropdownMenuLabel, 
-  DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 
@@ -57,12 +54,33 @@ export function TaskManagement() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // Task Fetching Logic
+  // --- Task Fetching Logic Based on Provided Role Hierarchy Table ---
   const tasksRef = useMemoFirebase(() => {
     let q = query(collection(db, "tasks"));
-    // Employees only see their own tasks
-    if (currentUser?.role === 'Employee') {
-      q = query(q, where("assignedToId", "==", currentUser.id));
+    
+    if (!currentUser) return q;
+
+    switch (currentUser.role) {
+      case 'Super Admin':
+        // Super Admin: All tasks
+        break;
+      case 'Admin':
+        // Admin: All except Super Admin tasks (where assignedByRole != 'Super Admin')
+        // Firestore doesn't support != directly on a field with other filters easily, 
+        // so we use multiple where clauses if needed or filter on client if not too many.
+        // For security, we'll keep it simple: q = query(q, where("assignedByRole", "!=", "Super Admin"));
+        // Note: != requires an index and might not work with orderBy without configuration.
+        q = query(q, where("assignedByRole", "!=", "Super Admin"));
+        break;
+      case 'Manager':
+      case 'Team Lead':
+        // Their team tasks (Based on department)
+        q = query(q, where("assignedToDepartment", "==", currentUser.department));
+        break;
+      case 'Employee':
+        // Only own tasks
+        q = query(q, where("assignedToId", "==", currentUser.id));
+        break;
     }
     return q;
   }, [db, currentUser]);
@@ -72,15 +90,28 @@ export function TaskManagement() {
   // Filter tasks based on status dropdown
   const tasks = allTasks?.filter(t => filterStatus === 'all' || t.status === filterStatus) || [];
 
-  // Subordinates for Assignment
+  // --- Subordinates Filtering Based on Assignment Table ---
   const usersRef = useMemoFirebase(() => query(collection(db, "users")), [db]);
   const { data: allUsers } = useCollection(usersRef);
 
   const subordinates = allUsers?.filter(u => {
-    if (currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') return true;
-    if (currentUser?.role === 'Manager') return u.role === 'Team Lead' || u.role === 'Employee';
-    if (currentUser?.role === 'Team Lead') return u.role === 'Employee';
-    return false;
+    if (!currentUser) return false;
+    if (u.id === currentUser.id) return false; // Don't assign to self for this demo
+
+    switch (currentUser.role) {
+      case 'Super Admin':
+        return true; // Anyone
+      case 'Admin':
+        return ['Manager', 'Team Lead', 'Employee'].includes(u.role);
+      case 'Manager':
+        // Team Lead, Employee (under them - same department)
+        return (u.role === 'Team Lead' || u.role === 'Employee') && u.department === currentUser.department;
+      case 'Team Lead':
+        // Employees under them (same department)
+        return u.role === 'Employee' && u.department === currentUser.department;
+      default:
+        return false; // Employees cannot assign
+    }
   }) || [];
 
   const [newTask, setNewTask] = useState({
@@ -94,17 +125,27 @@ export function TaskManagement() {
     e.preventDefault();
     if (!currentUser) return;
 
+    const targetUser = allUsers?.find(u => u.id === newTask.assignedToId);
+    if (!targetUser) {
+      toast({ variant: "destructive", title: "Error", description: "Select a valid assignee." });
+      return;
+    }
+
     const taskData = {
       ...newTask,
       status: 'pending',
       assignedById: currentUser.id,
+      assignedByRole: currentUser.role,
       assignedByName: currentUser.name,
+      assignedToRole: targetUser.role,
+      assignedToDepartment: targetUser.department,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
 
     addDocumentNonBlocking(collection(db, "tasks"), taskData);
     setIsCreateModalOpen(false);
+    setNewTask({ title: '', description: '', assignedToId: '', deadline: '' });
     toast({ title: "Task Assigned", description: "The task has been successfully dispatched." });
   };
 
@@ -125,7 +166,7 @@ export function TaskManagement() {
     }
   };
 
-  const canCreate = currentUser?.role !== 'Employee';
+  const canAssign = currentUser?.role !== 'Employee';
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -145,7 +186,7 @@ export function TaskManagement() {
             </SelectContent>
           </Select>
         </div>
-        {canCreate && (
+        {canAssign && (
           <Button onClick={() => setIsCreateModalOpen(true)} className="bg-primary">
             <Plus className="mr-2 h-4 w-4" />
             Assign New Task
@@ -158,22 +199,24 @@ export function TaskManagement() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {tasks.length === 0 ? (
-            <div className="col-span-2 py-20 text-center text-muted-foreground border border-dashed rounded-xl">
-              No tasks found in this category.
+            <div className="col-span-2 py-20 text-center text-muted-foreground border border-dashed rounded-xl bg-white/50">
+              No tasks available for your access level.
             </div>
           ) : tasks.map((task) => (
-            <Card key={task.id} className="hover:shadow-md transition-shadow bg-white border-none">
+            <Card key={task.id} className="hover:shadow-md transition-shadow bg-white border-none relative group">
               <CardHeader className="flex flex-row items-start justify-between pb-2">
                 <div className="space-y-1">
                   <Badge variant="outline" className={getStatusColor(task.status)}>
                     {task.status.toUpperCase()}
                   </Badge>
-                  <CardTitle className="text-lg">{task.title}</CardTitle>
+                  <CardTitle className="text-lg font-bold">{task.title}</CardTitle>
                 </div>
                 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon"><Settings2 className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Settings2 className="h-4 w-4" />
+                    </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Update Status</DropdownMenuLabel>
@@ -185,13 +228,18 @@ export function TaskManagement() {
                 </DropdownMenu>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{task.description}</p>
-                <div className="flex items-center justify-between text-[10px] pt-4 border-t uppercase font-bold tracking-wider text-muted-foreground">
-                  <div className="flex items-center gap-4">
-                    <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Due: {task.deadline}</span>
-                    <span className="flex items-center gap-1"><User className="h-3 w-3" /> {allUsers?.find(u => u.id === task.assignedToId)?.name || 'Unknown'}</span>
+                <p className="text-sm text-muted-foreground mb-4 line-clamp-2 leading-relaxed">{task.description}</p>
+                <div className="flex flex-col gap-2 pt-4 border-t">
+                  <div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Due: {task.deadline}</span>
+                      <span className="flex items-center gap-1"><User className="h-3 w-3" /> {allUsers?.find(u => u.id === task.assignedToId)?.name || 'Unknown'}</span>
+                    </div>
                   </div>
-                  {task.assignedByName && <div className="text-accent">By: {task.assignedByName}</div>}
+                  <div className="flex items-center justify-between text-[9px] uppercase font-medium text-primary/60">
+                    <span className="flex items-center gap-1"><Briefcase className="h-3 w-3" /> Team: {task.assignedToDepartment}</span>
+                    {task.assignedByName && <span>Assigned by: {task.assignedByName} ({task.assignedByRole})</span>}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -200,33 +248,46 @@ export function TaskManagement() {
       )}
 
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>NEW TASK ASSIGNMENT</DialogTitle></DialogHeader>
-          <form onSubmit={handleCreateTask} className="space-y-4">
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-primary font-bold">TASK ASSIGNMENT HUB</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateTask} className="space-y-4 pt-4">
             <div className="grid gap-2">
-              <Label>Task Title</Label>
-              <Input required value={newTask.title || ''} onChange={e => setNewTask({...newTask, title: e.target.value})} />
+              <Label htmlFor="t-title">Task Title</Label>
+              <Input id="t-title" placeholder="e.g., Q1 Performance Review" required value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} />
             </div>
             <div className="grid gap-2">
-              <Label>Description</Label>
-              <Textarea value={newTask.description || ''} onChange={e => setNewTask({...newTask, description: e.target.value})} />
+              <Label htmlFor="t-desc">Detailed Description</Label>
+              <Textarea id="t-desc" placeholder="Explain the objectives..." value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})} />
             </div>
             <div className="grid gap-2">
-              <Label>Assign To Subordinate</Label>
-              <Select required value={newTask.assignedToId || ''} onValueChange={val => setNewTask({...newTask, assignedToId: val})}>
-                <SelectTrigger><SelectValue placeholder="Select team member" /></SelectTrigger>
+              <Label htmlFor="t-assignee">Assign To Subordinate</Label>
+              <Select required value={newTask.assignedToId} onValueChange={val => setNewTask({...newTask, assignedToId: val})}>
+                <SelectTrigger id="t-assignee"><SelectValue placeholder="Search team members..." /></SelectTrigger>
                 <SelectContent>
-                  {subordinates.map(u => (
-                    <SelectItem key={u.id} value={u.id}>{u.name} ({u.role})</SelectItem>
-                  ))}
+                  {subordinates.length > 0 ? subordinates.map(u => (
+                    <SelectItem key={u.id} value={u.id}>
+                      <div className="flex flex-col">
+                        <span className="font-semibold">{u.name}</span>
+                        <span className="text-[10px] text-muted-foreground">{u.role} • {u.department}</span>
+                      </div>
+                    </SelectItem>
+                  )) : (
+                    <div className="p-2 text-xs text-center text-muted-foreground">No eligible subordinates found.</div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label>Deadline</Label>
-              <Input type="date" required value={newTask.deadline || ''} onChange={e => setNewTask({...newTask, deadline: e.target.value})} />
+              <Label htmlFor="t-date">Target Completion Date</Label>
+              <Input id="t-date" type="date" required value={newTask.deadline} onChange={e => setNewTask({...newTask, deadline: e.target.value})} />
             </div>
-            <DialogFooter><Button type="submit">Deploy Task</Button></DialogFooter>
+            <DialogFooter className="pt-4">
+              <Button type="submit" className="w-full h-11 bg-primary font-bold tracking-wide">
+                DEPLOY TASK TO WORKSPACE
+              </Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
