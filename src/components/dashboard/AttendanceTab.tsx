@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, doc, orderBy, limit, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, doc, limit, serverTimestamp } from "firebase/firestore";
 import { Clock, LogIn, LogOut, CheckCircle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -17,7 +17,7 @@ export function AttendanceTab() {
   const today = format(new Date(), "yyyy-MM-dd");
 
   const attendanceQuery = useMemoFirebase(() => {
-    if (!user || !user.role) return null;
+    if (!user || !user.role || !user.id) return null;
     let q = query(collection(db, "attendance"));
     
     // Employee sees own, Team Lead/Manager sees department, Admin+ sees all
@@ -27,7 +27,6 @@ export function AttendanceTab() {
       q = query(q, where("department", "==", user.department));
     }
     
-    // Using a simpler query for initial stability
     return query(q, limit(20));
   }, [db, user]);
 

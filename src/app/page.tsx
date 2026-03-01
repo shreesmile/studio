@@ -48,7 +48,6 @@ function DashboardContent() {
       const unsub = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          // Only update if data actually changed to prevent loops
           setProfile(data as any);
         }
         setIsInitializing(false);
@@ -110,6 +109,17 @@ function DashboardContent() {
     }
   };
 
+  const renderContent = () => {
+    switch (activeTab) {
+      case "dashboard": return <OverviewTab />;
+      case "attendance": return <AttendanceTab />;
+      case "leave": return <LeaveManagement />;
+      case "users": return <UserManagement />;
+      case "tasks": return <TaskManagement />;
+      default: return <OverviewTab />;
+    }
+  };
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-[#ECF1F4]">
@@ -132,11 +142,7 @@ function DashboardContent() {
           </header>
           <main className="flex-1 p-8 max-w-7xl mx-auto w-full animate-fade-in">
             <Suspense fallback={<TabLoader />}>
-              {activeTab === "dashboard" && <OverviewTab />}
-              {activeTab === "attendance" && <AttendanceTab />}
-              {activeTab === "leave" && <LeaveManagement />}
-              {activeTab === "users" && <UserManagement />}
-              {activeTab === "tasks" && <TaskManagement />}
+              {renderContent()}
             </Suspense>
           </main>
         </SidebarInset>

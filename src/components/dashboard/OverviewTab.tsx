@@ -17,7 +17,7 @@ export function OverviewTab() {
   const today = format(new Date(), "yyyy-MM-dd");
 
   const attendanceQuery = useMemoFirebase(() => {
-    if (!user || !user.role) return null;
+    if (!user || !user.role || !user.id) return null;
     let q = query(collection(db, "attendance"), where("date", "==", today));
     
     if (user.role === 'Employee') {
