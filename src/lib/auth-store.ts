@@ -11,8 +11,10 @@ export interface UserProfile {
   name: string;
   email: string;
   role: UserRole;
-  departmentId?: string;
-  reportingToId?: string;
+  department: string;
+  status: 'Active' | 'Pending' | 'Blocked';
+  managerId?: string;
+  teamLeadId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -25,10 +27,6 @@ interface AuthState {
   logout: () => void;
 }
 
-/**
- * Global authentication store using Zustand.
- * Synchronizes with Firebase Auth state provided by the FirebaseProvider.
- */
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -36,12 +34,10 @@ export const useAuthStore = create<AuthState>()(
       isLoaded: false,
       setProfile: (profile) => set({ profile, isLoaded: true }),
       setLoaded: (loaded) => set({ isLoaded: loaded }),
-      logout: () => {
-        set({ profile: null });
-      },
+      logout: () => set({ profile: null }),
     }),
     {
-      name: 'roleflow_auth_storage',
+      name: 'roleflow_enterprise_auth',
       onRehydrateStorage: () => (state) => {
         state?.setLoaded(true);
       },

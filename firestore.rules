@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -8,85 +9,77 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function getWeight(role) {
+      return role == 'Super Admin' ? 5 :
+             role == 'Admin' ? 4 :
+             role == 'Manager' ? 3 :
+             role == 'Team Lead' ? 2 : 1;
     }
 
-    function getRoleLevel(role) {
-      // Use exact strings to avoid case-conversion hallucinations
-      return role == 'Super Admin' ? 4 :
-             role == 'Admin' ? 3 :
-             role == 'Manager' ? 2 :
-             role == 'Team Lead' ? 1 : 0;
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
     }
 
-    function getMyLevel() {
-      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      return userDoc != null && 'role' in userDoc.data ? getRoleLevel(userDoc.data.role) : -1;
+    function getMyWeight() {
+      let myData = getUserData(request.auth.uid);
+      return myData != null ? getWeight(myData.role) : 0;
     }
 
-    function canManageTarget(targetRole) {
-      return isSignedIn() && getMyLevel() > getRoleLevel(targetRole);
+    function isSuperior(targetRole) {
+      return getMyWeight() > getWeight(targetRole);
     }
 
     // --- RULES ---
 
     match /users/{userId} {
-      // Allow any signed-in user to see any profile (for directory/assignments)
       allow get: if isSignedIn();
+      allow list: if isSignedIn() && getMyWeight() >= 2;
       
-      // Only Team Leads and above can list the entire directory
-      allow list: if isSignedIn() && getMyLevel() >= 1;
-      
-      // Allow creation by self (registration) or by a superior
-      allow create: if isSignedIn() && (isOwner(userId) || canManageTarget(request.resource.data.role));
-      
-      // Allow update if owner (but role must stay same) OR if superior
-      allow update: if isSignedIn() && (
-        (isOwner(userId) && request.resource.data.role == resource.data.role) || 
-        canManageTarget(resource.data.role)
-      );
-      
-      // Only superiors can delete
-      allow delete: if isSignedIn() && canManageTarget(resource.data.role);
-    }
-
-    match /tasks/{taskId} {
-      function myData() {
-        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      }
-
-      // Read rules: 
-      // 1. Admin+ sees all
-      // 2. Managers/Leads see their department
-      // 3. Employees see their own tasks
-      allow read: if isSignedIn() && (
-        getMyLevel() >= 3 || 
-        (getMyLevel() >= 1 && resource.data.assignedToDepartment == myData().department) ||
-        resource.data.assignedToId == request.auth.uid ||
-        resource.data.assignedById == request.auth.uid
-      );
-
-      // Create rules: Higher roles assign to lower roles
       allow create: if isSignedIn() && (
-        getMyLevel() >= 3 || 
-        (getMyLevel() >= 1 && getMyLevel() > getRoleLevel(request.resource.data.assignedToRole))
+        (request.auth.uid == userId) || 
+        isSuperior(request.resource.data.role)
       );
-
-      // Update rules: Creator, Assignee, or Admin+
+      
       allow update: if isSignedIn() && (
-        getMyLevel() >= 3 || 
-        resource.data.assignedToId == request.auth.uid ||
-        resource.data.assignedById == request.auth.uid
+        (request.auth.uid == userId && request.resource.data.role == resource.data.role) ||
+        isSuperior(resource.data.role)
       );
-
-      allow delete: if isSignedIn() && getMyLevel() >= 3;
+      
+      allow delete: if isSignedIn() && isSuperior(resource.data.role);
     }
 
-    // Role index collections for existence checks
-    match /user_roles_{role}/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && getMyLevel() >= 3;
+    match /attendance/{attendanceId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        getMyWeight() >= 4 ||
+        (getMyWeight() >= 2 && resource.data.department == getUserData(request.auth.uid).department)
+      );
+      
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      
+      allow update: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid ||
+        getMyWeight() >= 3
+      );
+    }
+
+    match /leave_requests/{requestId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        getMyWeight() >= 4 ||
+        (getMyWeight() >= 2 && resource.data.department == getUserData(request.auth.uid).department)
+      );
+      
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      
+      allow update: if isSignedIn() && (
+        (getMyWeight() >= 3 && resource.data.department == getUserData(request.auth.uid).department) ||
+        (getMyWeight() == 5)
+      );
+      
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid && resource.data.status == 'Pending'
+      );
     }
   }
 }

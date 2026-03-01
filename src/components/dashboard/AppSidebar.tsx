@@ -1,14 +1,17 @@
+
 "use client";
 
 import * as React from "react";
 import {
   LayoutDashboard,
   Users,
-  CheckSquare,
-  BarChart3,
+  Clock,
+  CalendarDays,
+  Briefcase,
   ShieldCheck,
   LogOut,
-  Briefcase
+  ChevronRight,
+  Settings
 } from "lucide-react";
 
 import {
@@ -28,44 +31,28 @@ import { signOut } from "firebase/auth";
 import { SheetTitle } from "@/components/ui/sheet";
 
 interface NavItem {
+  id: string;
   title: string;
   icon: React.ElementType;
-  roles: UserRole[];
-  id: string;
+  minWeight: number;
 }
 
 const navItems: NavItem[] = [
-  {
-    id: "dashboard",
-    title: "Dashboard",
-    icon: LayoutDashboard,
-    roles: ["Super Admin", "Admin", "Manager", "Team Lead", "Employee"],
-  },
-  {
-    id: "users",
-    title: "User Management",
-    icon: Users,
-    roles: ["Super Admin", "Admin", "Manager", "Team Lead"],
-  },
-  {
-    id: "tasks",
-    title: "Task Board",
-    icon: CheckSquare,
-    roles: ["Super Admin", "Admin", "Manager", "Team Lead", "Employee"],
-  },
-  {
-    id: "analytics",
-    title: "Analytics",
-    icon: BarChart3,
-    roles: ["Super Admin", "Admin", "Manager"],
-  },
-  {
-    id: "departments",
-    title: "Departments",
-    icon: Briefcase,
-    roles: ["Super Admin"],
-  },
+  { id: "dashboard", title: "Overview", icon: LayoutDashboard, minWeight: 1 },
+  { id: "attendance", title: "Attendance", icon: Clock, minWeight: 1 },
+  { id: "leave", title: "Leave Requests", icon: CalendarDays, minWeight: 1 },
+  { id: "users", title: "User Directory", icon: Users, minWeight: 2 },
+  { id: "departments", title: "Departments", icon: Briefcase, minWeight: 4 },
+  { id: "settings", title: "Settings", icon: Settings, minWeight: 5 },
 ];
+
+const ROLE_WEIGHTS: Record<UserRole, number> = {
+  'Super Admin': 5,
+  'Admin': 4,
+  'Manager': 3,
+  'Team Lead': 2,
+  'Employee': 1
+};
 
 export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTabChange: (id: string) => void }) {
   const { profile, logout: clearStore } = useAuthStore();
@@ -76,27 +63,27 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
     await signOut(auth);
     await fetch('/api/auth/session', { method: 'POST', body: JSON.stringify({ idToken: null }) });
     clearStore();
+    window.location.href = '/';
   };
 
-  const filteredNavItems = navItems.filter((item) =>
-    profile ? item.roles.includes(profile.role) : false
-  );
+  const userWeight = profile ? ROLE_WEIGHTS[profile.role] : 0;
+  const filteredNavItems = navItems.filter(item => userWeight >= item.minWeight);
 
   return (
     <Sidebar collapsible="icon" className="border-r bg-white">
       <SidebarHeader className="h-16 flex items-center px-4 border-b">
         <div className="flex items-center gap-2 overflow-hidden">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-sm">
             <ShieldCheck className="text-white w-5 h-5" />
           </div>
           {state !== "collapsed" && (
-            <span className="font-headline font-bold text-xl text-primary tracking-tight truncate">
+            <span className="font-bold text-lg text-primary tracking-tight truncate">
               RoleFlow
             </span>
           )}
         </div>
       </SidebarHeader>
-      <SidebarContent className="p-4">
+      <SidebarContent className="p-3">
         <SidebarMenu>
           {filteredNavItems.map((item) => (
             <SidebarMenuItem key={item.id}>
@@ -104,41 +91,46 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
                 isActive={activeTab === item.id}
                 onClick={() => onTabChange(item.id)}
                 tooltip={item.title}
-                className={`transition-all duration-200 h-10 px-3 rounded-lg ${
+                className={`transition-all duration-200 h-10 px-3 rounded-lg flex items-center justify-between ${
                   activeTab === item.id 
-                    ? "bg-primary/5 text-primary font-semibold" 
+                    ? "bg-primary/10 text-primary font-bold shadow-sm" 
                     : "text-muted-foreground hover:bg-muted/50"
                 }`}
               >
-                <item.icon className={`w-5 h-5 ${activeTab === item.id ? "text-primary" : ""}`} />
-                <span>{item.title}</span>
+                <div className="flex items-center gap-3">
+                  <item.icon className={`w-4 h-4 ${activeTab === item.id ? "text-primary" : ""}`} />
+                  <span>{item.title}</span>
+                </div>
+                {activeTab === item.id && state !== "collapsed" && (
+                  <ChevronRight className="w-3 h-3 text-primary animate-in fade-in slide-in-from-left-2" />
+                )}
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter className="p-4 border-t">
+      <SidebarFooter className="p-4 border-t bg-muted/20">
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10 border-2 border-muted shadow-sm">
+            <Avatar className="h-9 w-9 border-2 border-white shadow-sm ring-1 ring-muted">
               <AvatarImage src={`https://picsum.photos/seed/${profile?.id}/100/100`} />
-              <AvatarFallback>{profile?.name.charAt(0)}</AvatarFallback>
+              <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                {profile?.name.charAt(0)}
+              </AvatarFallback>
             </Avatar>
             {state !== "collapsed" && (
               <div className="flex flex-col overflow-hidden">
-                <span className="text-sm font-semibold truncate text-foreground">{profile?.name}</span>
-                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{profile?.role}</span>
+                <span className="text-xs font-bold truncate text-foreground">{profile?.name}</span>
+                <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">{profile?.role}</span>
               </div>
             )}
           </div>
           <button 
             onClick={handleLogout} 
-            className="flex items-center gap-2 text-destructive font-medium text-xs hover:opacity-80 transition-opacity w-full px-1"
+            className="flex items-center gap-2 text-destructive font-bold text-[10px] hover:opacity-80 transition-all w-full px-2 py-2 rounded-md hover:bg-destructive/5"
           >
-            <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
-              <LogOut className="w-4 h-4" />
-            </div>
-            {state !== "collapsed" && <span>Logout</span>}
+            <LogOut className="w-3.5 h-3.5" />
+            {state !== "collapsed" && <span className="uppercase tracking-widest">Logout Session</span>}
           </button>
         </div>
       </SidebarFooter>

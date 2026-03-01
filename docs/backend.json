@@ -1,56 +1,56 @@
+
 {
   "entities": {
-    "Role": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Role",
-      "type": "object",
-      "description": "Defines the distinct roles within the application.",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "permissions": { "type": "array", "items": { "type": "string" } }
-      },
-      "required": ["id", "name", "description", "permissions"]
-    },
     "User": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "Represents an individual user account.",
+      "description": "Enterprise user profile with hierarchical status.",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
         "email": { "type": "string", "format": "email" },
-        "password": { "type": "string" },
         "role": { "type": "string", "enum": ["Super Admin", "Admin", "Manager", "Team Lead", "Employee"] },
         "department": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Pending", "Blocked"] },
+        "managerId": { "type": "string" },
+        "teamLeadId": { "type": "string" },
+        "password": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name", "email", "role", "password", "department", "createdAt", "updatedAt"]
+      "required": ["id", "name", "email", "role", "status", "department"]
     },
-    "Task": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Task",
+    "Attendance": {
+      "title": "Attendance",
       "type": "object",
-      "description": "Represents a trackable task.",
       "properties": {
         "id": { "type": "string" },
-        "title": { "type": "string" },
-        "description": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "in-progress", "completed", "blocked"] },
-        "deadline": { "type": "string" },
-        "assignedToId": { "type": "string" },
-        "assignedToRole": { "type": "string" },
-        "assignedToDepartment": { "type": "string" },
-        "assignedById": { "type": "string" },
-        "assignedByRole": { "type": "string" },
-        "assignedByName": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "clockIn": { "type": "string", "format": "date-time" },
+        "clockOut": { "type": "string", "format": "date-time" },
+        "totalHours": { "type": "number" },
+        "status": { "type": "string", "enum": ["Present", "Late", "Half-day", "Absent"] },
+        "date": { "type": "string" },
+        "department": { "type": "string" }
       },
-      "required": ["id", "title", "description", "status", "assignedToId", "assignedById", "assignedByRole", "assignedToRole", "assignedToDepartment", "createdAt", "updatedAt"]
+      "required": ["userId", "clockIn", "date", "status"]
+    },
+    "LeaveRequest": {
+      "title": "LeaveRequest",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] },
+        "approvedBy": { "type": "string" },
+        "department": { "type": "string" }
+      },
+      "required": ["userId", "startDate", "endDate", "reason", "status"]
     }
   },
   "auth": {
@@ -59,15 +59,15 @@
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
-      "description": "Primary user profile storage."
+      "description": "Central user directory."
     },
-    "/tasks/{taskId}": {
-      "schema": { "$ref": "#/entities/Task" },
-      "description": "Centralized task board documents."
+    "/attendance/{attendanceId}": {
+      "schema": { "$ref": "#/entities/Attendance" },
+      "description": "Time tracking records."
     },
-    "/user_roles_{role}/{userId}": {
-      "schema": { "type": "object" },
-      "description": "Hierarchy check markers for security rules."
+    "/leave_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/LeaveRequest" },
+      "description": "Leave application workflow."
     }
   }
 }
