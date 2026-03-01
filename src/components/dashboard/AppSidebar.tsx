@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   Settings,
   LogOut,
-  ChevronRight,
   Briefcase
 } from "lucide-react";
 
@@ -22,7 +21,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useAuth, UserRole } from "@/lib/auth-store";
@@ -83,7 +81,7 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
   );
 
   return (
-    <Sidebar collapsible="icon" className="border-r">
+    <Sidebar collapsible="icon" className="border-r bg-white">
       <SidebarHeader className="h-16 flex items-center px-4 border-b">
         <div className="flex items-center gap-2 overflow-hidden">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
@@ -96,7 +94,7 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
           )}
         </div>
       </SidebarHeader>
-      <SidebarContent className="p-2">
+      <SidebarContent className="p-4">
         <SidebarMenu>
           {filteredNavItems.map((item) => (
             <SidebarMenuItem key={item.id}>
@@ -104,9 +102,13 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
                 isActive={activeTab === item.id}
                 onClick={() => onTabChange(item.id)}
                 tooltip={item.title}
-                className="transition-all duration-200"
+                className={`transition-all duration-200 h-10 px-3 rounded-lg ${
+                  activeTab === item.id 
+                    ? "bg-primary/5 text-primary font-semibold" 
+                    : "text-muted-foreground hover:bg-muted/50"
+                }`}
               >
-                <item.icon className="w-5 h-5" />
+                <item.icon className={`w-5 h-5 ${activeTab === item.id ? "text-primary" : ""}`} />
                 <span>{item.title}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -114,23 +116,28 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-4 border-t">
-        <div className="flex flex-col gap-4">
+        <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <Avatar className="h-9 w-9">
+            <Avatar className="h-10 w-10 border-2 border-muted shadow-sm">
               <AvatarImage src={`https://picsum.photos/seed/${user?.id}/100/100`} />
               <AvatarFallback>{user?.name.charAt(0)}</AvatarFallback>
             </Avatar>
             {state !== "collapsed" && (
               <div className="flex flex-col overflow-hidden">
-                <span className="text-sm font-medium truncate">{user?.name}</span>
-                <span className="text-xs text-muted-foreground truncate">{user?.role}</span>
+                <span className="text-sm font-semibold truncate text-foreground">{user?.name}</span>
+                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{user?.role}</span>
               </div>
             )}
           </div>
-          <SidebarMenuButton onClick={logout} className="text-destructive hover:text-destructive hover:bg-destructive/10">
-            <LogOut className="w-5 h-5" />
-            <span>Logout</span>
-          </SidebarMenuButton>
+          <button 
+            onClick={logout} 
+            className="flex items-center gap-2 text-destructive font-medium text-xs hover:opacity-80 transition-opacity w-full px-1"
+          >
+            <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
+              <LogOut className="w-4 h-4" />
+            </div>
+            {state !== "collapsed" && <span>Logout</span>}
+          </button>
         </div>
       </SidebarFooter>
     </Sidebar>

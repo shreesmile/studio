@@ -110,22 +110,22 @@ export default function Home() {
       <div className="flex min-h-screen w-full">
         <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} />
         <SidebarInset className="bg-[#ECF1F4]">
-          <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b bg-background/80 backdrop-blur px-6">
+          <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b bg-background/80 backdrop-blur-md px-6">
             <div className="flex items-center gap-4">
               <SidebarTrigger className="-ml-1" />
               <Separator orientation="vertical" className="h-4" />
-              <h1 className="text-lg font-semibold tracking-tight text-primary">
+              <h1 className="text-sm font-semibold tracking-tight text-[#457399]">
                 {getPageTitle()}
               </h1>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               <div className="text-right hidden sm:block">
-                <p className="text-xs font-medium text-muted-foreground">Connected as</p>
-                <p className="text-sm font-bold text-accent">{user.role}</p>
+                <span className="text-[10px] font-medium text-muted-foreground">Connected as</span>
+                <span className="ml-1 text-[10px] font-bold text-accent">{user.role}</span>
               </div>
             </div>
           </header>
-          <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
+          <main className="flex-1 p-8 max-w-7xl mx-auto w-full">
             {renderContent()}
           </main>
         </SidebarInset>
