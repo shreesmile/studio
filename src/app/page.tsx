@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -12,10 +11,11 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { LoginForm } from "@/components/auth/LoginForm";
 
 import { OverviewTab } from "@/components/dashboard/OverviewTab";
-import { UserManagement } from "@/components/dashboard/UserManagement";
-import { AttendanceTab } from "@/components/dashboard/AttendanceTab";
-import { LeaveManagement } from "@/components/dashboard/LeaveManagement";
+import { ProjectManagement } from "@/components/dashboard/ProjectManagement";
 import { TaskManagement } from "@/components/dashboard/TaskManagement";
+import { WorkLogTerminal } from "@/components/dashboard/WorkLogTerminal";
+import { UserManagement } from "@/components/dashboard/UserManagement";
+import { ReportsTab } from "@/components/dashboard/ReportsTab";
 
 function DashboardContent() {
   const { user, isUserLoading } = useUser();
@@ -35,7 +35,6 @@ function DashboardContent() {
       return;
     }
 
-    // Only initiate synchronization if the authenticated user has changed
     if (user && syncRef.current !== user.uid) {
       syncRef.current = user.uid;
       setIsInitializing(true);
@@ -50,11 +49,8 @@ function DashboardContent() {
         console.error("Profile synchronization failure:", err);
         setIsInitializing(false);
       });
-      return () => {
-        unsub();
-      };
+      return () => unsub();
     } else if (user && profile && profile.id === user.uid) {
-      // Already synced
       setIsInitializing(false);
     }
   }, [user, isUserLoading, db, setProfile, clearProfile, profile]);
@@ -63,7 +59,6 @@ function DashboardContent() {
     setActiveTab(id);
   }, []);
 
-  // Guard: Show loader if auth is loading or profile is not yet aligned with UID
   if (isUserLoading || (user && (isInitializing || !profile || profile.id !== user.uid))) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
@@ -97,25 +92,27 @@ function DashboardContent() {
     );
   }
 
-  const getPageTitle = () => {
-    switch (activeTab) {
-      case "dashboard": return "Operational Overview";
-      case "attendance": return "Attendance Tracker";
-      case "leave": return "Absence Control";
-      case "users": return "Strategic Directory";
-      case "tasks": return "Workflow Engine";
-      default: return "Enterprise Dashboard";
-    }
-  };
-
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard": return <OverviewTab />;
-      case "attendance": return <AttendanceTab />;
-      case "leave": return <LeaveManagement />;
-      case "users": return <UserManagement />;
+      case "projects": return <ProjectManagement />;
       case "tasks": return <TaskManagement />;
+      case "timelogs": return <WorkLogTerminal />;
+      case "users": return <UserManagement />;
+      case "reports": return <ReportsTab />;
       default: return <OverviewTab />;
+    }
+  };
+
+  const getPageTitle = () => {
+    switch (activeTab) {
+      case "dashboard": return "Operational Overview";
+      case "projects": return "Project Portfolio";
+      case "tasks": return "Workflow Engine";
+      case "timelogs": return "Work Log Terminal";
+      case "users": return "Strategic Directory";
+      case "reports": return "Analytics Center";
+      default: return "Enterprise Dashboard";
     }
   };
 

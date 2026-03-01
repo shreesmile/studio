@@ -1,16 +1,15 @@
-
 "use client";
 
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Plus, Calendar, Filter, User, Loader2, Settings2 } from "lucide-react";
+import { Plus, Calendar, Filter, User, Loader2, Settings2, ClipboardList, Layers } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore, UserRole } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, useUser, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, serverTimestamp, doc } from "firebase/firestore";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { collection, query, where, serverTimestamp, doc, orderBy } from "firebase/firestore";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,39 +31,37 @@ export function TaskManagement() {
   const { toast } = useToast();
   const [filterStatus, setFilterStatus] = useState("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isSubTaskModalOpen, setIsSubTaskModalOpen] = useState(false);
+  const [selectedTaskForSub, setSelectedTaskForSub] = useState<string | null>(null);
 
   const tasksRef = useMemoFirebase(() => {
-    // CRITICAL: Prevent unauthorized list if profile is not synced with current auth UID
     if (!currentUser || !currentUser.role || !authUser || currentUser.id !== authUser.uid) return null;
-    
     let q = query(collection(db, "tasks"));
-
-    switch (currentUser.role) {
-      case 'Super Admin': break;
-      case 'Admin': break;
-      case 'Manager':
-      case 'Team Lead':
-        if (currentUser.department) {
-          q = query(q, where("assignedToDepartment", "==", currentUser.department));
-        }
-        break;
-      case 'Employee':
-        q = query(q, where("assignedToId", "==", currentUser.id));
-        break;
-    }
-    return q;
+    if (currentUser.role === 'Employee') return query(q, where("assignedTo", "==", authUser.uid));
+    if (currentUser.role === 'Super Admin' || currentUser.role === 'Admin') return q;
+    return query(q, where("assignedToDepartment", "==", currentUser.department));
   }, [db, currentUser, authUser]);
   
   const { data: allTasks, isLoading } = useCollection(tasksRef);
   const tasks = allTasks?.filter(t => filterStatus === 'all' || t.status === filterStatus) || [];
 
+  const projectsRef = useMemoFirebase(() => {
+    if (!currentUser) return null;
+    return query(collection(db, "projects"), where("department", "==", currentUser.department));
+  }, [db, currentUser]);
+  const { data: projects } = useCollection(projectsRef);
+
   const usersRef = useMemoFirebase(() => {
-    if (!currentUser || !currentUser.role || !authUser || currentUser.id !== authUser.uid) return null;
-    if (ROLE_POWER[currentUser.role] < 1) return null;
+    if (!currentUser || ROLE_POWER[currentUser.role] < 1) return null;
     return collection(db, "users");
-  }, [db, currentUser, authUser]);
-  
+  }, [db, currentUser]);
   const { data: allUsers } = useCollection(usersRef);
+
+  const subTasksRef = useMemoFirebase(() => {
+    if (!authUser) return null;
+    return collection(db, "sub_tasks");
+  }, [db, authUser]);
+  const { data: allSubTasks } = useCollection(subTasksRef);
 
   const subordinates = allUsers?.filter(u => {
     if (!currentUser || u.id === currentUser.id) return false;
@@ -77,32 +74,45 @@ export function TaskManagement() {
     return false;
   }) || [];
 
-  const [newTask, setNewTask] = useState({ title: '', description: '', assignedToId: '', deadline: '' });
+  const [newTask, setNewTask] = useState({ projectId: '', title: '', description: '', assignedTo: '', dueDate: '', estimatedHours: 0 });
+  const [newSubTask, setNewSubTask] = useState({ title: '', description: '', priority: 'Medium' });
 
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
-    const target = allUsers?.find(u => u.id === newTask.assignedToId);
-    if (!target || !currentUser || !authUser || currentUser.id !== authUser.uid) return;
+    if (!currentUser || !authUser) return;
+    const target = allUsers?.find(u => u.id === newTask.assignedTo);
 
     const taskData = {
-      title: newTask.title,
-      description: newTask.description,
-      assignedToId: newTask.assignedToId,
-      deadline: newTask.deadline,
+      ...newTask,
       status: 'pending',
-      assignedById: currentUser.id,
-      assignedByRole: currentUser.role,
-      assignedByName: currentUser.name,
-      assignedToRole: target.role,
-      assignedToDepartment: target.department,
+      createdBy: currentUser.id,
+      assignedToDepartment: target?.department || currentUser.department,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
 
     addDocumentNonBlocking(collection(db, "tasks"), taskData);
     setIsCreateModalOpen(false);
-    setNewTask({ title: '', description: '', assignedToId: '', deadline: '' });
-    toast({ title: "Task Deployed", description: "Workflow synchronized." });
+    setNewTask({ projectId: '', title: '', description: '', assignedTo: '', dueDate: '', estimatedHours: 0 });
+    toast({ title: "Task Deployed", description: "Main workflow unit initialized." });
+  };
+
+  const handleCreateSubTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || !selectedTaskForSub) return;
+
+    const subTaskData = {
+      ...newSubTask,
+      taskId: selectedTaskForSub,
+      status: 'pending',
+      createdBy: currentUser.id,
+      createdAt: serverTimestamp()
+    };
+
+    addDocumentNonBlocking(collection(db, "sub_tasks"), subTaskData);
+    setIsSubTaskModalOpen(false);
+    setNewSubTask({ title: '', description: '', priority: 'Medium' });
+    toast({ title: "Sub-task Captured", description: "Granular effort unit added to workflow." });
   };
 
   const getStatusColor = (status: string) => {
@@ -115,7 +125,7 @@ export function TaskManagement() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-40 bg-white">
@@ -130,89 +140,158 @@ export function TaskManagement() {
             <SelectItem value="blocked">Blocked</SelectItem>
           </SelectContent>
         </Select>
-        {currentUser?.role !== 'Employee' && (
+        {['Super Admin', 'Admin', 'Manager'].includes(currentUser?.role || '') && (
           <Button onClick={() => setIsCreateModalOpen(true)} className="bg-primary">
             <Plus className="mr-2 h-4 w-4" />
-            Assign Workspace Task
+            Initialize Main Task
           </Button>
         )}
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-20"><Loader2 className="animate-spin h-8 w-8 text-primary/40" /></div>
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <Loader2 className="animate-spin text-primary/20 w-10 h-10" />
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest italic">Syncing Workflows...</p>
+        </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {tasks.length === 0 ? (
-            <div className="col-span-2 py-20 text-center text-muted-foreground border border-dashed rounded-xl bg-white/50">
-              No tasks matched the current clearance level.
-            </div>
-          ) : tasks.map((task) => (
-            <Card key={task.id} className="hover:shadow-md transition-shadow bg-white border-none">
+        <div className="grid gap-6 md:grid-cols-2">
+          {tasks.map((task) => (
+            <Card key={task.id} className="hover:shadow-md transition-all bg-white border-none group overflow-hidden">
+              <div className={`h-1 w-full ${getStatusColor(task.status).split(' ')[0]}`} />
               <CardHeader className="flex flex-row items-start justify-between pb-2">
                 <div className="space-y-1">
-                  <Badge variant="outline" className={`text-[10px] uppercase font-black ${getStatusColor(task.status)}`}>
-                    {task.status}
-                  </Badge>
-                  <CardTitle className="text-lg font-bold">{task.title}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={`text-[9px] uppercase font-black ${getStatusColor(task.status)}`}>
+                      {task.status}
+                    </Badge>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">
+                      {projects?.find(p => p.id === task.projectId)?.name}
+                    </span>
+                  </div>
+                  <CardTitle className="text-lg font-bold group-hover:text-primary transition-colors">{task.title}</CardTitle>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8"><Settings2 className="h-4 w-4" /></Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'in-progress', updatedAt: serverTimestamp() })}>In Progress</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'completed', updatedAt: serverTimestamp() })}>Completed</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'blocked', updatedAt: serverTimestamp() })}>Blocked</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { setSelectedTaskForSub(task.id); setIsSubTaskModalOpen(true); }}>
+                      <Plus className="mr-2 h-4 w-4" /> Add Sub-task
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'in-progress' })}>Set In-Progress</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'completed' })}>Set Completed</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{task.description}</p>
-                <div className="flex flex-col gap-2 pt-4 border-t">
-                  <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground">
-                    <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {task.deadline}</span>
-                    <span className="flex items-center gap-1"><User className="h-3 w-3" /> {allUsers?.find(u => u.id === task.assignedToId)?.name || 'N/A'}</span>
+              <CardContent className="space-y-4">
+                <p className="text-xs text-muted-foreground line-clamp-2 italic">"{task.description}"</p>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                    <span className="flex items-center gap-1"><Layers className="w-3 h-3" /> Sub-tasks Analysis</span>
+                    <span>{allSubTasks?.filter(st => st.taskId === task.id && st.status === 'completed').length || 0} / {allSubTasks?.filter(st => st.taskId === task.id).length || 0}</span>
+                  </div>
+                  <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary transition-all duration-500" 
+                      style={{ width: `${(allSubTasks?.filter(st => st.taskId === task.id && st.status === 'completed').length || 0) / (allSubTasks?.filter(st => st.taskId === task.id).length || 1) * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-4 border-t border-muted/50">
+                  <div className="flex items-center gap-2">
+                    <User className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-[10px] font-bold uppercase">{allUsers?.find(u => u.id === task.assignedTo)?.name || 'Unassigned'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-[10px] font-bold text-muted-foreground">{task.dueDate}</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
           ))}
+          {tasks.length === 0 && (
+            <div className="col-span-2 py-20 text-center border-2 border-dashed rounded-2xl bg-white/50 space-y-2">
+              <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground/20" />
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">No strategic tasks in current clearance level.</p>
+            </div>
+          )}
         </div>
       )}
 
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>DEPLOY WORKFLOW TASK</DialogTitle>
-            <DialogDescription>
-              Assign a new task to a subordinate within your department.
-            </DialogDescription>
+            <DialogTitle className="font-black uppercase tracking-tighter">Initialize Operational Task</DialogTitle>
+            <DialogDescription className="text-xs font-bold uppercase tracking-widest opacity-70">Primary workflow deployment unit</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateTask} className="space-y-4 pt-4">
-            <div className="grid gap-2">
-              <Label>Task Title</Label>
-              <Input required value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} />
-            </div>
-            <div className="grid gap-2">
-              <Label>Designated Assignee</Label>
-              <Select required value={newTask.assignedToId} onValueChange={val => setNewTask({...newTask, assignedToId: val})}>
-                <SelectTrigger><SelectValue placeholder="Select subordinate" /></SelectTrigger>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-widest">Target Project</Label>
+              <Select value={newTask.projectId} onValueChange={v => setNewTask({...newTask, projectId: v})}>
+                <SelectTrigger><SelectValue placeholder="Select workspace" /></SelectTrigger>
                 <SelectContent>
-                  {subordinates.map(u => (
-                    <SelectItem key={u.id} value={u.id}>{u.name} ({u.role})</SelectItem>
-                  ))}
+                  {projects?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label>Operational Details</Label>
-              <Textarea value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})} />
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-widest">Task Title</Label>
+              <Input required value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} />
             </div>
-            <div className="grid gap-2">
-              <Label>Target Deadline</Label>
-              <Input type="date" required value={newTask.deadline} onChange={e => setNewTask({...newTask, deadline: e.target.value})} />
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-widest">Assigned Personnel</Label>
+              <Select value={newTask.assignedTo} onValueChange={v => setNewTask({...newTask, assignedTo: v})}>
+                <SelectTrigger><SelectValue placeholder="Select subordinate" /></SelectTrigger>
+                <SelectContent>
+                  {subordinates.map(u => <SelectItem key={u.id} value={u.id}>{u.name} ({u.role})</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-            <Button type="submit" className="w-full h-11 bg-primary font-bold uppercase tracking-widest text-xs">INITIALIZE WORKFLOW</Button>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase tracking-widest">Target Deadline</Label>
+                <Input type="date" required value={newTask.dueDate} onChange={e => setNewTask({...newTask, dueDate: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase tracking-widest">Est. Hours</Label>
+                <Input type="number" value={newTask.estimatedHours} onChange={e => setNewTask({...newTask, estimatedHours: Number(e.target.value)})} />
+              </div>
+            </div>
+            <DialogFooter className="pt-4">
+              <Button type="submit" className="w-full h-11 bg-primary font-bold uppercase tracking-widest text-xs">Authorize Task Deployment</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSubTaskModalOpen} onOpenChange={setIsSubTaskModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-tighter">Capture Sub-Task Unit</DialogTitle>
+            <DialogDescription className="text-xs font-bold uppercase tracking-widest opacity-70">Granular effort decomposition</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateSubTask} className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-widest">Unit Title</Label>
+              <Input required value={newSubTask.title} onChange={e => setNewSubTask({...newSubTask, title: e.target.value})} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-widest">Priority Layer</Label>
+              <Select value={newSubTask.priority} onValueChange={v => setNewSubTask({...newSubTask, priority: v})}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Low">Low</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter className="pt-4">
+              <Button type="submit" className="w-full h-11 bg-accent font-bold uppercase tracking-widest text-xs">Synchronize Sub-task Effort</Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

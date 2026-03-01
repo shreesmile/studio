@@ -1,16 +1,16 @@
-
 "use client";
 
 import * as React from "react";
 import {
   LayoutDashboard,
   Users,
-  Clock,
-  CalendarDays,
   Briefcase,
+  FileText,
+  PieChart,
   ShieldCheck,
   LogOut,
   ChevronRight,
+  ClipboardList
 } from "lucide-react";
 
 import {
@@ -37,10 +37,11 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { id: "dashboard", title: "Overview", icon: LayoutDashboard, minWeight: 1 },
-  { id: "attendance", title: "Attendance", icon: Clock, minWeight: 1 },
-  { id: "leave", title: "Leave Requests", icon: CalendarDays, minWeight: 1 },
-  { id: "users", title: "User Directory", icon: Users, minWeight: 2 },
-  { id: "tasks", title: "Tasks", icon: Briefcase, minWeight: 1 },
+  { id: "projects", title: "Projects", icon: Briefcase, minWeight: 1 },
+  { id: "tasks", title: "Tasks", icon: ClipboardList, minWeight: 1 },
+  { id: "timelogs", title: "Work Logs", icon: FileText, minWeight: 1 },
+  { id: "reports", title: "Reports", icon: PieChart, minWeight: 3 },
+  { id: "users", title: "Directory", icon: Users, minWeight: 2 },
 ];
 
 const ROLE_WEIGHTS: Record<UserRole, number> = {
