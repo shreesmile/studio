@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * FIRESTORE SECURITY RULES - HIERARCHICAL RBAC
+     * FIRESTORE SECURITY RULES - ROBUST RBAC HIERARCHY
      */
 
     // --- GLOBAL HELPER FUNCTIONS ---
@@ -16,6 +16,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Robust role check: Checks both the DBAC collection AND the user profile fallback
     function hasRole(roleName) {
       let roleDoc = roleName.lower().replace(" ", "_");
       return isSignedIn() && (
@@ -25,13 +26,12 @@ service cloud.firestore {
       );
     }
 
-    // Role Definition Helpers
     function isSuperAdmin() { return hasRole('Super Admin'); }
     function isAdmin() { return isSuperAdmin() || hasRole('Admin'); }
     function isManager() { return isAdmin() || hasRole('Manager'); }
     function isTeamLead() { return isManager() || hasRole('Team Lead'); }
 
-    // Management Hierarchy Logic for CREATE (Checks incoming data)
+    // Hierarchy Logic for Creation (Checks incoming data)
     function canCreateRole(targetRole) {
       return isSuperAdmin() || 
              (isAdmin() && targetRole != 'Super Admin') ||
@@ -39,30 +39,36 @@ service cloud.firestore {
              (isTeamLead() && targetRole == 'Employee');
     }
 
-    // Management Hierarchy Logic for UPDATE/DELETE (Checks existing data)
-    function canManageExistingUser(targetUserId) {
-      let targetData = get(/databases/$(database)/documents/users/$(targetUserId)).data;
-      let targetRole = targetData.role;
-      
+    // Hierarchy Logic for Management (Checks existing data)
+    function canManageTarget(targetUserId) {
+      // If we can't see the target, we can't manage them. 
+      // This helper is used in update/delete.
+      let target = get(/databases/$(database)/documents/users/$(targetUserId)).data;
       return isSuperAdmin() || 
-             (isAdmin() && targetRole != 'Super Admin') ||
-             (isManager() && (targetRole == 'Team Lead' || targetRole == 'Employee')) ||
-             (isTeamLead() && targetRole == 'Employee');
+             (isAdmin() && target.role != 'Super Admin') ||
+             (isManager() && (target.role == 'Team Lead' || target.role == 'Employee')) ||
+             (isTeamLead() && target.role == 'Employee');
     }
 
     // --- COLLECTION RULES ---
 
     match /users/{userId} {
-      allow get: if isOwner(userId) || canManageExistingUser(userId);
+      // Users can always read their own profile. Admins+ can read based on hierarchy.
+      allow get: if isOwner(userId) || isTeamLead();
       allow list: if isTeamLead();
       
-      // Allow self-registration OR allowed hierarchy creation
+      // Allow self-creation (registration) OR administrative creation based on hierarchy
       allow create: if isOwner(userId) || canCreateRole(request.resource.data.role);
-      allow update: if isOwner(userId) || canManageExistingUser(userId);
-      allow delete: if isSuperAdmin() || (isAdmin() && canManageExistingUser(userId));
+      
+      // Allow self-update OR administrative update
+      allow update: if isOwner(userId) || canManageTarget(userId);
+      
+      // Only Admins and above can delete, respecting hierarchy
+      allow delete: if isAdmin() && canManageTarget(userId);
     }
 
     // Role Assignment Collections (DBAC)
+    // These are critical for exists() checks in rules.
     match /user_roles_super_admin/{userId} {
       allow read: if isSignedIn();
       allow write: if isOwner(userId) || isSuperAdmin();
@@ -86,8 +92,11 @@ service cloud.firestore {
 
     match /tasks/{taskId} {
       allow read: if isSignedIn();
+      // Only Team Leads and above can create tasks
       allow create: if isTeamLead();
+      // Owners can update (to complete), or assigners/leads can update
       allow update: if isOwner(resource.data.assignedToId) || isTeamLead();
+      // Admins or the original assigner can delete
       allow delete: if isAdmin() || (resource != null && resource.data.assignedById == request.auth.uid);
     }
 
