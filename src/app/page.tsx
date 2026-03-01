@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   SidebarProvider, 
   SidebarInset, 
@@ -24,14 +24,17 @@ function DashboardContent() {
   const db = useFirestore();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isSyncing, setIsSyncing] = useState(false);
+  const syncAttemptedFor = useRef<string | null>(null);
 
   // Sync Firebase User with Firestore Profile
   useEffect(() => {
     let isMounted = true;
     
-    if (user && !profile && !isSyncing) {
+    // Only attempt sync if we have a user, no profile, and haven't tried for this specific UID yet in this session
+    if (user && !profile && !isSyncing && syncAttemptedFor.current !== user.uid) {
       const fetchProfile = async () => {
         setIsSyncing(true);
+        syncAttemptedFor.current = user.uid;
         try {
           const docRef = doc(db, "users", user.uid);
           const docSnap = await getDoc(docRef);
@@ -47,10 +50,11 @@ function DashboardContent() {
       fetchProfile();
     } else if (!user && profile) {
       clearStore();
+      syncAttemptedFor.current = null;
     }
     
     return () => { isMounted = false; };
-  }, [user, profile, db, setProfile, clearStore, isSyncing]);
+  }, [user, profile, db, setProfile, clearStore]); // Removed isSyncing from dependencies to prevent loop
 
   // Tab permission check
   useEffect(() => {
@@ -65,10 +69,16 @@ function DashboardContent() {
   if (isUserLoading || (user && !profile && isSyncing)) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background gap-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground animate-pulse font-medium">
-          Synchronizing role hierarchy...
-        </p>
+        <div className="relative">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <ShieldCheck className="h-4 w-4 text-primary" />
+          </div>
+        </div>
+        <div className="text-center space-y-1">
+          <p className="text-sm font-semibold text-foreground">Synchronizing role hierarchy...</p>
+          <p className="text-xs text-muted-foreground animate-pulse">Establishing secure session</p>
+        </div>
       </div>
     );
   }
@@ -82,7 +92,7 @@ function DashboardContent() {
               <ShieldCheck className="text-white w-10 h-10" />
             </div>
             <h1 className="text-4xl font-headline font-extrabold text-primary tracking-tight">RoleFlow</h1>
-            <p className="mt-2 text-muted-foreground font-body">Professional RBAC Management Platform</p>
+            <p className="mt-2 text-muted-foreground font-body text-balance">Professional RBAC Management Platform</p>
           </div>
 
           <div className="bg-white p-8 rounded-3xl shadow-xl border border-white space-y-6">
