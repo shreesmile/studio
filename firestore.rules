@@ -76,7 +76,7 @@ service cloud.firestore {
       allow list: if isSignedIn() && (
         getWeight() >= 4 ||
         (getWeight() >= 2 && isMyDept(resource.data.department)) ||
-        (getWeight() < 4) // Queries must handle specific filtering
+        (getWeight() < 4) // Queries must handle specific filtering in UI
       );
 
       allow create: if isSignedIn() && getWeight() >= 3;
@@ -115,26 +115,12 @@ service cloud.firestore {
     // -------------------------
 
     match /sub_tasks/{subTaskId} {
-      allow read, list: if isSignedIn(); // Broad list allowed, UI filters by taskId
+      allow read, list: if isSignedIn();
       allow create: if isSignedIn() && getWeight() >= 1;
       allow update, delete: if isSignedIn() && (
         resource.data.createdBy == request.auth.uid || 
         getWeight() >= 3
       );
-    }
-
-    // -------------------------
-    // WORK LOGS
-    // -------------------------
-
-    match /work_logs/{logId} {
-      allow read: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || 
-        getWeight() >= 4 || 
-        (getWeight() >= 3 && isMyDept(resource.data.department))
-      );
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
     // -------------------------

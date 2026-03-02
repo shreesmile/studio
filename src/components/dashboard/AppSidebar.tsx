@@ -7,12 +7,12 @@ import {
   LayoutDashboard,
   Users,
   Briefcase,
-  FileText,
-  PieChart,
   ShieldCheck,
   LogOut,
   ChevronRight,
-  ClipboardList
+  ClipboardList,
+  Calendar,
+  Clock
 } from "lucide-react";
 
 import {
@@ -42,8 +42,8 @@ const navItems: NavItem[] = [
   { id: "dashboard", title: "Overview", icon: LayoutDashboard, minWeight: 1 },
   { id: "projects", title: "Projects", icon: Briefcase, minWeight: 1 },
   { id: "tasks", title: "Tasks", icon: ClipboardList, minWeight: 1 },
-  { id: "timelogs", title: "Work Logs", icon: FileText, minWeight: 1 },
-  { id: "reports", title: "Reports", icon: PieChart, minWeight: 3 },
+  { id: "attendance", title: "Attendance", icon: Clock, minWeight: 1 },
+  { id: "leave", title: "Absence", icon: Calendar, minWeight: 1 },
   { id: "users", title: "Directory", icon: Users, minWeight: 2 },
 ];
 
@@ -115,17 +115,15 @@ export const AppSidebar = React.memo(({ activeTab, onTabChange }: { activeTab: s
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <Avatar className="h-9 w-9 border-2 border-white shadow-sm ring-1 ring-muted overflow-hidden relative">
-              {avatarPlaceholder && (
-                <Image 
-                  src={`https://picsum.photos/seed/${profile?.id || 'default'}/150/150`}
-                  alt="User avatar"
-                  fill
-                  className="object-cover"
-                  priority // Sidebar avatar is part of the initial viewport
-                  sizes="36px"
-                  data-ai-hint={avatarPlaceholder.imageHint}
-                />
-              )}
+              <Image 
+                src={`https://picsum.photos/seed/${profile?.id || 'default'}/150/150`}
+                alt="User avatar"
+                fill
+                className="object-cover"
+                priority
+                sizes="36px"
+                data-ai-hint="professional portrait"
+              />
               <AvatarFallback className="bg-primary/10 text-primary font-bold relative z-10">
                 {profile?.name.charAt(0) || "U"}
               </AvatarFallback>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -10,7 +11,9 @@ import {
   BrainCircuit, 
   Loader2, 
   Briefcase, 
-  BarChart3
+  BarChart3,
+  ShieldAlert,
+  Zap
 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
@@ -48,21 +51,17 @@ export const OverviewTab = React.memo(() => {
 
   const { data: projects, isLoading: loadingProjects } = useCollection(projectsQuery);
 
-  const logsQuery = useMemoFirebase(() => {
-    if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) return null;
-    let q = collection(db, "work_logs");
+  const tasksQuery = useMemoFirebase(() => {
+    if (!authUser || !user || !user.role || user.id !== authUser.uid) return null;
+    let q = collection(db, "tasks");
     
-    if (user.role === 'Employee') return query(q, where("userId", "==", authUser.uid), limit(20));
-    if (user.role === 'Super Admin' || user.role === 'Admin') return query(q, limit(20));
+    if (user.role === 'Employee') return query(q, where("assignedTo", "==", authUser.uid), limit(10));
+    if (user.role === 'Super Admin' || user.role === 'Admin') return query(q, limit(10));
     
-    return query(q, where("department", "==", user.department), limit(20));
+    return query(q, where("assignedToDepartment", "==", user.department), limit(10));
   }, [db, user, authUser]);
 
-  const { data: logs, isLoading: loadingLogs } = useCollection(logsQuery);
-
-  const totalEffort = React.useMemo(() => 
-    logs?.reduce((acc, l) => acc + (l.totalHours || 0), 0).toFixed(1) || "0",
-  [logs]);
+  const { data: tasks, isLoading: loadingTasks } = useCollection(tasksQuery);
 
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-dashboard');
 
@@ -75,7 +74,7 @@ export const OverviewTab = React.memo(() => {
             alt="RoleFlow Command Center Background"
             fill
             className="object-cover opacity-80"
-            priority // Critical for LCP
+            priority
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             data-ai-hint={heroImage.imageHint}
           />
@@ -106,11 +105,15 @@ export const OverviewTab = React.memo(() => {
 
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="pb-2">
-            <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Production Effort</CardDescription>
-            <CardTitle className="text-3xl font-black text-primary">{totalEffort}h</CardTitle>
+            <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Workflow Load</CardDescription>
+            <CardTitle className="text-3xl font-black text-primary">
+              {loadingTasks ? <Loader2 className="w-6 h-6 animate-spin opacity-20" /> : tasks?.length || 0}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-[9px] font-bold text-muted-foreground uppercase">Captured Performance</div>
+            <div className="flex items-center gap-1 text-[9px] font-bold text-accent uppercase">
+              <Zap className="w-3 h-3" /> Active Delivery
+            </div>
           </CardContent>
         </Card>
 
@@ -130,7 +133,9 @@ export const OverviewTab = React.memo(() => {
             <CardTitle className="text-3xl font-black text-primary">SECURE</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-[9px] font-bold text-muted-foreground uppercase">Sync Protocol Active</div>
+            <div className="flex items-center gap-1 text-[9px] font-bold text-muted-foreground uppercase">
+              <ShieldAlert className="w-3 h-3" /> RBAC Policy Active
+            </div>
           </CardContent>
         </Card>
       </div>

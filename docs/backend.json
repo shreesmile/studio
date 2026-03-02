@@ -68,25 +68,6 @@
       },
       "required": ["taskId", "title", "status"]
     },
-    "WorkLog": {
-      "title": "WorkLog",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "userId": { "type": "string" },
-        "userName": { "type": "string" },
-        "projectId": { "type": "string" },
-        "taskId": { "type": "string" },
-        "subTaskId": { "type": "string" },
-        "date": { "type": "string" },
-        "startTime": { "type": "string" },
-        "endTime": { "type": "string" },
-        "totalHours": { "type": "number" },
-        "progressNote": { "type": "string" },
-        "department": { "type": "string" }
-      },
-      "required": ["userId", "date", "totalHours", "progressNote"]
-    },
     "Attendance": {
       "title": "Attendance",
       "type": "object",
@@ -138,10 +119,6 @@
     "/sub_tasks/{subTaskId}": {
       "schema": { "$ref": "#/entities/SubTask" },
       "description": "Granular task units."
-    },
-    "/work_logs/{logId}": {
-      "schema": { "$ref": "#/entities/WorkLog" },
-      "description": "Daily work tracking logs."
     },
     "/attendance/{attendanceId}": {
       "schema": { "$ref": "#/entities/Attendance" },

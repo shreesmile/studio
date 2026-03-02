@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -26,15 +27,7 @@ const TaskManagement = dynamic(() => import("@/components/dashboard/TaskManageme
   loading: () => <TabSkeleton />,
   ssr: false 
 });
-const WorkLogTerminal = dynamic(() => import("@/components/dashboard/WorkLogTerminal").then(mod => mod.WorkLogTerminal), { 
-  loading: () => <TabSkeleton />,
-  ssr: false 
-});
 const UserManagement = dynamic(() => import("@/components/dashboard/UserManagement").then(mod => mod.UserManagement), { 
-  loading: () => <TabSkeleton />,
-  ssr: false 
-});
-const ReportsTab = dynamic(() => import("@/components/dashboard/ReportsTab").then(mod => mod.ReportsTab), { 
   loading: () => <TabSkeleton />,
   ssr: false 
 });
@@ -171,9 +164,7 @@ function DashboardContent() {
       case "dashboard": return <OverviewTab />;
       case "projects": return <ProjectManagement />;
       case "tasks": return <TaskManagement />;
-      case "timelogs": return <WorkLogTerminal />;
       case "users": return <UserManagement />;
-      case "reports": return <ReportsTab />;
       case "attendance": return <AttendanceTab />;
       case "leave": return <LeaveManagement />;
       default: return <OverviewTab />;
@@ -185,9 +176,7 @@ function DashboardContent() {
       case "dashboard": return "Command Center";
       case "projects": return "Strategic Projects";
       case "tasks": return "Workflow Engine";
-      case "timelogs": return "Production Logs";
       case "users": return "Directory Management";
-      case "reports": return "Performance Intelligence";
       case "attendance": return "Operation Terminal";
       case "leave": return "Absence Control";
       default: return "Enterprise Dashboard";
