@@ -64,7 +64,10 @@ export const OverviewTab = React.memo(() => {
 
   const { data: logs, isLoading: loadingLogs } = useCollection(logsQuery);
 
-  const totalEffort = logs?.reduce((acc, l) => acc + (l.totalHours || 0), 0).toFixed(1) || "0";
+  const totalEffort = React.useMemo(() => 
+    logs?.reduce((acc, l) => acc + (l.totalHours || 0), 0).toFixed(1) || "0",
+  [logs]);
+
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-dashboard');
 
   return (
@@ -76,8 +79,8 @@ export const OverviewTab = React.memo(() => {
             alt="Dashboard Hero"
             fill
             className="object-cover opacity-80"
-            priority
-            sizes="100vw"
+            priority // Critical for LCP optimization
+            sizes="(max-width: 1280px) 100vw, 1200px"
             data-ai-hint={heroImage.imageHint}
           />
         )}

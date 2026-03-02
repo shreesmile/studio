@@ -121,6 +121,8 @@ export const AppSidebar = React.memo(({ activeTab, onTabChange }: { activeTab: s
                   alt="User avatar"
                   fill
                   className="object-cover"
+                  priority // Sidebar avatar is part of the initial viewport
+                  sizes="36px"
                   data-ai-hint={avatarPlaceholder.imageHint}
                 />
               )}
