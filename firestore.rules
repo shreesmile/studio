@@ -45,11 +45,7 @@ service cloud.firestore {
         (getWeight() >= 2 && isMyDept(resource.data.department))
       );
       
-      allow create: if isSignedIn() && (
-        request.auth.uid == userId || 
-        getWeight() >= 4 || 
-        (getWeight() >= 2 && isMyDept(request.resource.data.department) && getWeight() > getRoleWeight(request.resource.data.role))
-      );
+      allow create: if isSignedIn() && request.auth.uid == userId;
       
       allow update: if isSignedIn() && (
         request.auth.uid == userId || 
@@ -89,9 +85,9 @@ service cloud.firestore {
 
     match /tasks/{taskId} {
       allow read, list: if isSignedIn() && (
+        getWeight() >= 4 ||
         resource.data.assignedTo == request.auth.uid || 
         resource.data.createdBy == request.auth.uid || 
-        getWeight() >= 4 ||
         (getWeight() >= 3 && isMyDept(resource.data.assignedToDepartment))
       );
       allow create: if isSignedIn() && getWeight() >= 3;
@@ -121,8 +117,13 @@ service cloud.firestore {
     // -------------------------
 
     match /attendance/{attendanceId} {
-      // Explicitly allow Admins to bypass resource.data checks for listing
-      allow read, list: if isSignedIn() && (
+      // Allow admins (4+) and users to list their own or dept records
+      allow list: if isSignedIn() && (
+        getWeight() >= 4 || 
+        (resource != null && resource.data.userId == request.auth.uid) || 
+        (resource != null && getWeight() >= 2 && isMyDept(resource.data.department))
+      );
+      allow get: if isSignedIn() && (
         getWeight() >= 4 || 
         resource.data.userId == request.auth.uid || 
         (getWeight() >= 2 && isMyDept(resource.data.department))
@@ -136,7 +137,12 @@ service cloud.firestore {
     // -------------------------
 
     match /leave_requests/{requestId} {
-      allow read, list: if isSignedIn() && (
+      allow list: if isSignedIn() && (
+        getWeight() >= 4 || 
+        (resource != null && resource.data.userId == request.auth.uid) || 
+        (resource != null && getWeight() >= 2 && isMyDept(resource.data.department))
+      );
+      allow get: if isSignedIn() && (
         getWeight() >= 4 || 
         resource.data.userId == request.auth.uid || 
         (getWeight() >= 2 && isMyDept(resource.data.department))

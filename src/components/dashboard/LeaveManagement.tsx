@@ -1,15 +1,15 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore, ROLE_WEIGHTS } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase";
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { collection, query, where, doc, orderBy, serverTimestamp } from "firebase/firestore";
-import { CalendarDays, Plus, CheckCircle, XCircle, Clock, Loader2 } from "lucide-react";
+import { collection, query, where, doc, serverTimestamp } from "firebase/firestore";
+import { CalendarDays, Plus, Clock, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -25,27 +25,34 @@ export function LeaveManagement() {
   const [newRequest, setNewRequest] = useState({ startDate: '', endDate: '', reason: '' });
 
   const leaveQuery = useMemoFirebase(() => {
-    // SECURITY: Must wait for full identity handshake to satisfy list rules
     if (!authUser || !user || user.id !== authUser.uid || !user.role || !user.department) return null;
     
     let q = collection(db, "leave_requests");
     const userWeight = ROLE_WEIGHTS[user.role] || 0;
     
-    // Admins and Super Admins can list all records
+    // Performance: Remove orderBy to avoid composite index requirement in prototype
     if (userWeight >= 4) {
-      return query(q, orderBy("startDate", "desc"));
+      return query(q);
     }
 
-    // Managers and Team Leads are scoped to their department
     if (userWeight >= 2) {
-      return query(q, where("department", "==", user.department), orderBy("startDate", "desc"));
+      return query(q, where("department", "==", user.department));
     }
 
-    // Employees are strictly limited to their own records
-    return query(q, where("userId", "==", authUser.uid), orderBy("startDate", "desc"));
+    return query(q, where("userId", "==", authUser.uid));
   }, [db, user, authUser]);
 
-  const { data: requests, isLoading } = useCollection(leaveQuery);
+  const { data: rawRequests, isLoading } = useCollection(leaveQuery);
+
+  // Client-side sorting to resolve "Query requires an index" errors
+  const requests = useMemo(() => {
+    if (!rawRequests) return [];
+    return [...rawRequests].sort((a, b) => {
+      const dateA = new Date(a.startDate || 0).getTime();
+      const dateB = new Date(b.startDate || 0).getTime();
+      return dateB - dateA;
+    });
+  }, [rawRequests]);
 
   const handleRequestSubmit = (e: React.FormEvent) => {
     e.preventDefault();

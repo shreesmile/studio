@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useAuthStore, ROLE_WEIGHTS } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase";
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { collection, query, where, doc, limit, serverTimestamp, orderBy } from "firebase/firestore";
+import { collection, query, where, doc, limit, serverTimestamp } from "firebase/firestore";
 import { Clock, LogIn, LogOut, CheckCircle, Loader2, Briefcase, FileText, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -22,7 +22,6 @@ export function AttendanceTab() {
   const db = useFirestore();
   const { toast } = useToast();
   
-  // Prevent hydration mismatch by initializing time-sensitive data in useEffect
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [today, setToday] = useState<string>("");
 
@@ -42,27 +41,34 @@ export function AttendanceTab() {
   const [dailyWorkTime, setDailyWorkTime] = useState("");
 
   const attendanceQuery = useMemoFirebase(() => {
-    // SECURITY: Must wait for full identity handshake to satisfy list rules
     if (!authUser || !user || user.id !== authUser.uid || !user.role || !user.department) return null;
     
     let q = collection(db, "attendance");
     const userWeight = ROLE_WEIGHTS[user.role] || 0;
     
-    // Admins and Super Admins can list all records
+    // Performance: Remove orderBy to avoid composite index requirement in prototype
     if (userWeight >= 4) {
-      return query(q, orderBy("clockIn", "desc"), limit(50));
+      return query(q, limit(50));
     }
 
-    // Managers and Team Leads are scoped to their department
     if (userWeight >= 2) {
-      return query(q, where("department", "==", user.department), orderBy("clockIn", "desc"), limit(50));
+      return query(q, where("department", "==", user.department), limit(50));
     }
 
-    // Employees are strictly limited to their own records
-    return query(q, where("userId", "==", authUser.uid), orderBy("clockIn", "desc"), limit(50));
+    return query(q, where("userId", "==", authUser.uid), limit(50));
   }, [db, user, authUser]);
 
-  const { data: records, isLoading } = useCollection(attendanceQuery);
+  const { data: rawRecords, isLoading } = useCollection(attendanceQuery);
+
+  // Client-side sorting to resolve "Query requires an index" errors
+  const records = useMemo(() => {
+    if (!rawRecords) return [];
+    return [...rawRecords].sort((a, b) => {
+      const dateA = new Date(a.clockIn || 0).getTime();
+      const dateB = new Date(b.clockIn || 0).getTime();
+      return dateB - dateA;
+    });
+  }, [rawRecords]);
 
   const todayRecord = useMemo(() => 
     records?.find(r => r.date === today && r.userId === (user?.id || authUser?.uid)),
@@ -214,7 +220,7 @@ export function AttendanceTab() {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {records?.map((rec) => (
+                    {records.map((rec) => (
                       <tr key={rec.id} className="hover:bg-muted/20 transition-colors">
                         <td className="px-4 py-3 font-semibold">
                           {rec.userName}
