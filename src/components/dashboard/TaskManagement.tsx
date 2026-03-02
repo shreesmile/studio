@@ -25,7 +25,7 @@ const ROLE_POWER: Record<UserRole, number> = {
   'Employee': 0
 };
 
-export function TaskManagement() {
+export const TaskManagement = React.memo(() => {
   const { profile: currentUser } = useAuthStore();
   const { user: authUser } = useUser();
   const db = useFirestore();
@@ -50,7 +50,6 @@ export function TaskManagement() {
     if (!currentUser || !currentUser.role || !authUser || currentUser.id !== authUser.uid) return null;
     let q = collection(db, "projects");
     
-    // For Employees, we MUST align with the new security requirements (Creator OR assignedUsers)
     if (currentUser.role === 'Employee') {
       return query(
         q, 
@@ -316,4 +315,6 @@ export function TaskManagement() {
       </Dialog>
     </div>
   );
-}
+});
+
+TaskManagement.displayName = "TaskManagement";

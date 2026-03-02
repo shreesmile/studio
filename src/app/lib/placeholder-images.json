@@ -2,16 +2,22 @@
 {
   "placeholderImages": [
     {
-      "id": "hero-bg",
-      "description": "Professional office background",
-      "imageUrl": "https://picsum.photos/seed/roleflow-hero/1200/800",
-      "imageHint": "office workspace"
+      "id": "hero-dashboard",
+      "description": "Professional abstract network background",
+      "imageUrl": "https://picsum.photos/seed/rf-hero/1200/400",
+      "imageHint": "abstract network"
     },
     {
-      "id": "avatar-admin",
-      "description": "Admin user avatar",
-      "imageUrl": "https://picsum.photos/seed/admin-user/150/150",
+      "id": "avatar-placeholder",
+      "description": "Default professional avatar",
+      "imageUrl": "https://picsum.photos/seed/rf-avatar/150/150",
       "imageHint": "professional portrait"
+    },
+    {
+      "id": "project-thumb",
+      "description": "Strategic project thumbnail",
+      "imageUrl": "https://picsum.photos/seed/rf-project/400/250",
+      "imageHint": "office strategy"
     }
   ]
 }

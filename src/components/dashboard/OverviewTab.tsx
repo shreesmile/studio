@@ -2,6 +2,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -17,27 +18,24 @@ import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase";
 import { collection, query, where, limit, or } from "firebase/firestore";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
 
-export function OverviewTab() {
+export const OverviewTab = React.memo(() => {
   const { profile: user } = useAuthStore();
   const { user: authUser } = useUser();
   const db = useFirestore();
 
   const projectsQuery = useMemoFirebase(() => {
     if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) {
-      console.log("[Overview] Identity not synchronized. Skipping project fetch.");
       return null;
     }
     
-    console.log(`[Overview] Initializing project fetch for clearance: ${user.role}`);
     let q = collection(db, "projects");
     
-    // Admins see all
     if (user.role === 'Super Admin' || user.role === 'Admin') {
       return query(q, limit(10));
     }
     
-    // Others see assigned, created, or department-wide (for Managers/TL)
     const filters = [
       where("assignedUsers", "array-contains", authUser.uid),
       where("createdBy", "==", authUser.uid)
@@ -47,7 +45,6 @@ export function OverviewTab() {
       filters.push(where("department", "==", user.department));
     }
     
-    // The or() query aligns with projects security rules
     return query(q, or(...filters), limit(10));
   }, [db, user, authUser]);
 
@@ -66,9 +63,29 @@ export function OverviewTab() {
   const { data: logs, isLoading: loadingLogs } = useCollection(logsQuery);
 
   const totalEffort = logs?.reduce((acc, l) => acc + (l.totalHours || 0), 0).toFixed(1) || "0";
+  const heroImage = PlaceHolderImages.find(img => img.id === 'hero-dashboard');
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="relative w-full h-32 rounded-3xl overflow-hidden shadow-sm mb-8 bg-muted">
+        {heroImage && (
+          <Image 
+            src={heroImage.imageUrl}
+            alt="Dashboard hero"
+            fill
+            className="object-cover opacity-80"
+            priority
+            data-ai-hint={heroImage.imageHint}
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-transparent flex items-center px-8">
+          <div>
+            <h2 className="text-white text-2xl font-black uppercase tracking-tighter">Welcome, {user?.name.split(' ')[0]}</h2>
+            <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">Operational Command: {user?.role}</p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-6 md:grid-cols-4">
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="pb-2">
@@ -189,4 +206,6 @@ export function OverviewTab() {
       </div>
     </div>
   );
-}
+});
+
+OverviewTab.displayName = "OverviewTab";

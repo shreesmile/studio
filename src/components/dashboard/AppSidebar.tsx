@@ -1,6 +1,8 @@
+
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import {
   LayoutDashboard,
   Users,
@@ -24,9 +26,10 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useAuthStore, UserRole } from "@/lib/auth-store";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/firebase";
 import { signOut } from "firebase/auth";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 interface NavItem {
   id: string;
@@ -52,7 +55,7 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
   'Employee': 1
 };
 
-export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTabChange: (id: string) => void }) {
+export const AppSidebar = React.memo(({ activeTab, onTabChange }: { activeTab: string, onTabChange: (id: string) => void }) => {
   const { profile, logout: clearStore } = useAuthStore();
   const auth = useAuth();
   const { state } = useSidebar();
@@ -66,6 +69,7 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
 
   const userWeight = profile ? ROLE_WEIGHTS[profile.role] : 0;
   const filteredNavItems = navItems.filter(item => userWeight >= item.minWeight);
+  const avatarPlaceholder = PlaceHolderImages.find(img => img.id === 'avatar-placeholder');
 
   return (
     <Sidebar collapsible="icon" className="border-r bg-white">
@@ -110,9 +114,17 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
       <SidebarFooter className="p-4 border-t bg-muted/20">
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <Avatar className="h-9 w-9 border-2 border-white shadow-sm ring-1 ring-muted">
-              <AvatarImage src={`https://picsum.photos/seed/${profile?.id}/100/100`} />
-              <AvatarFallback className="bg-primary/10 text-primary font-bold">
+            <Avatar className="h-9 w-9 border-2 border-white shadow-sm ring-1 ring-muted overflow-hidden relative">
+              {avatarPlaceholder && (
+                <Image 
+                  src={`https://picsum.photos/seed/${profile?.id || 'default'}/150/150`}
+                  alt="User avatar"
+                  fill
+                  className="object-cover"
+                  data-ai-hint={avatarPlaceholder.imageHint}
+                />
+              )}
+              <AvatarFallback className="bg-primary/10 text-primary font-bold relative z-10">
                 {profile?.name.charAt(0) || "U"}
               </AvatarFallback>
             </Avatar>
@@ -134,4 +146,6 @@ export function AppSidebar({ activeTab, onTabChange }: { activeTab: string, onTa
       </SidebarFooter>
     </Sidebar>
   );
-}
+});
+
+AppSidebar.displayName = "AppSidebar";

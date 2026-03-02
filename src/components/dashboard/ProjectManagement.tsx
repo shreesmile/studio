@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,8 +22,9 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
 
-export function ProjectManagement() {
+export const ProjectManagement = React.memo(() => {
   const { profile: user } = useAuthStore();
   const { user: authUser } = useUser();
   const db = useFirestore();
@@ -59,6 +61,7 @@ export function ProjectManagement() {
   }, [db, user, authUser]);
 
   const { data: projects, isLoading } = useCollection(projectsQuery);
+  const projectThumb = PlaceHolderImages.find(img => img.id === 'project-thumb');
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,7 +114,18 @@ export function ProjectManagement() {
           </div>
         ) : projects?.map((project) => (
           <Card key={project.id} className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden bg-white">
-            <div className={`h-1.5 w-full ${getPriorityColor(project.priority).split(' ')[0]}`} />
+            <div className="relative h-24 w-full bg-muted overflow-hidden">
+               {projectThumb && (
+                 <Image 
+                   src={`https://picsum.photos/seed/${project.id}/400/250`}
+                   alt="Project thumbnail"
+                   fill
+                   className="object-cover group-hover:scale-105 transition-transform duration-500 opacity-60"
+                   data-ai-hint={projectThumb.imageHint}
+                 />
+               )}
+               <div className={`absolute bottom-0 left-0 h-1 w-full ${getPriorityColor(project.priority).split(' ')[0]}`} />
+            </div>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between mb-2">
                 <Badge variant="outline" className={`text-[8px] font-black uppercase tracking-widest ${getPriorityColor(project.priority)}`}>
@@ -217,4 +231,6 @@ export function ProjectManagement() {
       </Dialog>
     </div>
   );
-}
+});
+
+ProjectManagement.displayName = "ProjectManagement";
