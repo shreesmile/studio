@@ -16,7 +16,7 @@ import {
 import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, where, limit, orderBy } from "firebase/firestore";
+import { collection, query, where, limit, or } from "firebase/firestore";
 
 export function OverviewTab() {
   const { profile: user } = useAuthStore();
@@ -30,21 +30,25 @@ export function OverviewTab() {
       return null;
     }
     
-    console.log(`[OverviewTab] Initiating project discovery for ${user.role} in ${user.department}`);
-    let q = query(collection(db, "projects"));
+    console.log(`[OverviewTab] Initiating project discovery for ${user.role} (UID: ${authUser.uid})`);
+    let q = collection(db, "projects");
     
+    // Admins and Super Admins see global overview
     if (user.role === 'Super Admin' || user.role === 'Admin') {
-      return query(q, orderBy("createdAt", "desc"), limit(10));
+      return query(q, limit(10));
     }
     
-    if (user.role === 'Employee') {
-      // Employees strictly filter by assignedTo
-      return query(q, where("assignedTo", "array-contains", authUser.uid), limit(10));
-    }
-    
-    // Managers and Team Leads see departmental projects
-    // Note: Removed orderBy("createdAt") here to avoid index requirements for now
-    return query(q, where("department", "==", user.department), limit(10));
+    // ALIGNMENT WITH NEW SECURITY RULES:
+    // Read if Creator OR in assignedUsers array
+    // We use the 'or' composite filter to satisfy the rule for the entire list
+    return query(
+      q, 
+      or(
+        where("assignedUsers", "array-contains", authUser.uid),
+        where("createdBy", "==", authUser.uid)
+      ), 
+      limit(10)
+    );
   }, [db, user, authUser]);
 
   const { data: projects, isLoading: loadingProjects } = useCollection(projectsQuery);

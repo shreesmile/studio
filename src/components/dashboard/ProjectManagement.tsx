@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, useUser, addDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, orderBy, serverTimestamp, limit } from "firebase/firestore";
+import { collection, query, where, orderBy, serverTimestamp, limit, or } from "firebase/firestore";
 import { Briefcase, Plus, Calendar, Target, Loader2, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -44,19 +44,25 @@ export function ProjectManagement() {
       return null;
     }
     
-    let q = query(collection(db, "projects"));
+    console.log(`[ProjectManagement] Initiating query for UID: ${authUser.uid} (Role: ${user.role})`);
+    let q = collection(db, "projects");
     
+    // Admins and Super Admins can broad list
     if (user.role === 'Super Admin' || user.role === 'Admin') {
       return query(q, limit(50));
     }
     
-    // Employees strictly filter by assignment to satisfy rules
-    if (user.role === 'Employee') {
-      return query(q, where("assignedTo", "array-contains", authUser.uid), limit(50));
-    }
-    
-    // Managers and Team Leads filter by department
-    return query(q, where("department", "==", user.department), limit(50));
+    // NEW REQUIREMENTS ALIGNMENT:
+    // User can read if createdBy == uid OR uid in assignedUsers
+    // For the list query to satisfy this, we MUST use an 'or' filter
+    return query(
+      q, 
+      or(
+        where("assignedUsers", "array-contains", authUser.uid),
+        where("createdBy", "==", authUser.uid)
+      ), 
+      limit(50)
+    );
   }, [db, user, authUser]);
 
   const { data: projects, isLoading } = useCollection(projectsQuery);
@@ -69,11 +75,12 @@ export function ProjectManagement() {
       ...newProject,
       department: user.department || "General",
       createdBy: authUser.uid,
-      assignedTo: [],
+      assignedUsers: [authUser.uid], // Creator is always assigned
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
 
+    console.log("[ProjectManagement] Deploying new strategic asset:", projectData);
     addDocumentNonBlocking(collection(db, "projects"), projectData);
     setIsModalOpen(false);
     setNewProject({ name: '', description: '', startDate: '', endDate: '', priority: 'Medium', status: 'Not Started' });
@@ -96,19 +103,17 @@ export function ProjectManagement() {
           <h2 className="text-xl font-black text-primary uppercase tracking-tighter">Project Portfolio</h2>
           <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Strategic Portfolio Assets</p>
         </div>
-        {['Super Admin', 'Admin', 'Manager'].includes(user?.role || '') && (
-          <Button onClick={() => setIsModalOpen(true)} className="bg-primary shadow-lg hover:shadow-primary/20">
-            <Plus className="mr-2 h-4 w-4" />
-            New Project
-          </Button>
-        )}
+        <Button onClick={() => setIsModalOpen(true)} className="bg-primary shadow-lg hover:shadow-primary/20">
+          <Plus className="mr-2 h-4 w-4" />
+          New Project
+        </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {isLoading ? (
           <div className="col-span-full py-20 flex flex-col items-center gap-4">
             <Loader2 className="animate-spin text-primary/20 w-10 h-10" />
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Accessing clearance layer...</p>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest italic animate-pulse">Accessing clearance layer...</p>
           </div>
         ) : projects?.map((project) => (
           <Card key={project.id} className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden bg-white">
@@ -143,7 +148,7 @@ export function ProjectManagement() {
               <div className="flex items-center justify-between pt-2">
                  <div className="flex items-center gap-2">
                    <Users className="w-3.5 h-3.5 text-muted-foreground" />
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{project.assignedTo?.length || 0} Members</span>
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{project.assignedUsers?.length || 0} Members</span>
                  </div>
                  <Badge variant="secondary" className="text-[9px] font-bold uppercase">{project.department}</Badge>
               </div>
@@ -162,7 +167,7 @@ export function ProjectManagement() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-tighter text-xl">Initialize Strategic Project</DialogTitle>
-            <DialogDescription className="text-xs uppercase tracking-widest font-bold opacity-70">
+            <DialogDescription className="text-[10px] font-bold uppercase tracking-widest opacity-60">
               Define a new organizational deliverable and workspace.
             </DialogDescription>
           </DialogHeader>

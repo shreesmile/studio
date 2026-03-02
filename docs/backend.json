@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -30,11 +31,11 @@
         "endDate": { "type": "string" },
         "priority": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
         "status": { "type": "string", "enum": ["Not Started", "In Progress", "Completed", "On Hold"] },
-        "assignedTo": { "type": "array", "items": { "type": "string" }, "description": "Array of UIDs assigned to this project." },
+        "assignedUsers": { "type": "array", "items": { "type": "string" }, "description": "Array of UIDs assigned to this project." },
         "department": { "type": "string" },
         "createdBy": { "type": "string" }
       },
-      "required": ["name", "status", "priority", "department"]
+      "required": ["name", "status", "priority", "department", "createdBy"]
     },
     "Task": {
       "title": "Task",

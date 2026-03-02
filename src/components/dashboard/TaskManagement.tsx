@@ -9,7 +9,7 @@ import { Plus, Calendar, Filter, User, Loader2, Settings2, ClipboardList, Layers
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore, UserRole } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, useUser, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, serverTimestamp, doc, orderBy } from "firebase/firestore";
+import { collection, query, where, serverTimestamp, doc, or } from "firebase/firestore";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -48,19 +48,23 @@ export function TaskManagement() {
 
   const projectsRef = useMemoFirebase(() => {
     if (!currentUser || !currentUser.role || !authUser || currentUser.id !== authUser.uid) return null;
-    let q = query(collection(db, "projects"));
+    let q = collection(db, "projects");
     
-    // For Employees, we MUST filter projects by assignedTo to satisfy rules
+    // For Employees, we MUST align with the new security requirements (Creator OR assignedUsers)
     if (currentUser.role === 'Employee') {
-      return query(q, where("assignedTo", "array-contains", authUser.uid));
+      return query(
+        q, 
+        or(
+          where("assignedUsers", "array-contains", authUser.uid),
+          where("createdBy", "==", authUser.uid)
+        )
+      );
     }
     
-    // For Admins, no filter needed
     if (currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
-      return q;
+      return query(q);
     }
 
-    // For Managers/TLs, departmental filter
     return query(q, where("department", "==", currentUser.department || "General"));
   }, [db, currentUser, authUser]);
   
@@ -166,7 +170,7 @@ export function TaskManagement() {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <Loader2 className="animate-spin text-primary/20 w-10 h-10" />
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest italic">Syncing Workflows...</p>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest italic animate-pulse">Syncing Workflows...</p>
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
@@ -240,7 +244,7 @@ export function TaskManagement() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-tighter">Initialize Operational Task</DialogTitle>
-            <DialogDescription className="text-xs font-bold uppercase tracking-widest opacity-70">Primary workflow deployment unit</DialogDescription>
+            <DialogDescription className="text-[10px] font-bold uppercase tracking-widest opacity-60">Primary workflow deployment unit</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateTask} className="space-y-4 pt-4">
             <div className="space-y-2">
@@ -286,7 +290,7 @@ export function TaskManagement() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-tighter">Capture Sub-Task Unit</DialogTitle>
-            <DialogDescription className="text-xs font-bold uppercase tracking-widest opacity-70">Granular effort decomposition</DialogDescription>
+            <DialogDescription className="text-[10px] font-bold uppercase tracking-widest opacity-60">Granular effort decomposition</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateSubTask} className="space-y-4 pt-4">
             <div className="space-y-2">

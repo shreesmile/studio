@@ -52,21 +52,21 @@ service cloud.firestore {
     // -------------------------
 
     match /projects/{projectId} {
-      // Allow broad listing for Admins, restricted queries for others
-      allow list: if isSignedIn() && (
-        getWeight() >= 4 || 
-        (request.query.limit <= 50)
+      // NEW REQUIREMENTS:
+      // Read: Authenticated AND (Creator OR in assignedUsers OR Admin+)
+      allow read: if isSignedIn() && (
+        resource.data.createdBy == request.auth.uid || 
+        request.auth.uid in resource.data.assignedUsers ||
+        getWeight() >= 4
       );
       
-      allow get: if isSignedIn() && (
-        getWeight() >= 4 || 
-        (getWeight() >= 2 && isMyDept(resource.data.department)) || 
-        (resource != null && request.auth.uid in resource.data.assignedTo)
+      // Create: Any authenticated user
+      allow create: if isSignedIn();
+      
+      // Update/Delete: Only the creator
+      allow update, delete: if isSignedIn() && (
+        resource.data.createdBy == request.auth.uid
       );
-
-      allow create: if isSignedIn() && getWeight() >= 3;
-      allow update: if isSignedIn() && (getWeight() >= 4 || (getWeight() >= 3 && isMyDept(resource.data.department)));
-      allow delete: if isSignedIn() && getWeight() >= 4;
     }
 
     // -------------------------
