@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -9,6 +10,10 @@ service cloud.firestore {
     function getUserData(uid) {
       let path = /databases/$(database)/documents/users/$(uid);
       return exists(path) ? get(path).data : {"role": "Employee", "department": "General"};
+    }
+
+    function isRole(role) {
+      return getUserData(request.auth.uid).role == role;
     }
 
     function getLevel(role) {

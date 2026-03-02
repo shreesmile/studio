@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from "react";
@@ -5,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/lib/auth-store";
-import { useFirestore, useCollection, useMemoFirebase, useUser, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
+import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase";
+import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { collection, query, where, doc, orderBy, serverTimestamp } from "firebase/firestore";
 import { CalendarDays, Plus, CheckCircle, XCircle, Clock, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -23,15 +25,16 @@ export function LeaveManagement() {
   const [newRequest, setNewRequest] = useState({ startDate: '', endDate: '', reason: '' });
 
   const leaveQuery = useMemoFirebase(() => {
-    if (!authUser || !user) return null;
+    // Safety guard: Don't run if auth user doesn't match profile yet
+    if (!authUser || !user || user.id !== authUser.uid) return null;
     
     let q = query(collection(db, "leave_requests"));
     
-    // CRITICAL: Employee MUST filter by their own UID to avoid permission error
+    // Strict filtering based on role to match security rules
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role)) {
-      q = query(q, where("department", "==", user.department));
+      q = query(q, where("department", "==", user.department || "General"));
     }
     
     return query(q, orderBy("startDate", "desc"));
@@ -46,7 +49,7 @@ export function LeaveManagement() {
     const requestData = {
       userId: authUser.uid,
       userName: user?.name || authUser.email || "Employee",
-      department: user?.department || "Default",
+      department: user?.department || "General",
       ...newRequest,
       status: 'Pending',
       createdAt: serverTimestamp(),

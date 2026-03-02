@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -8,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth-store";
-import { useFirestore, useCollection, useMemoFirebase, useUser, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
+import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase";
+import { setDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { collection, query, where, doc, limit, serverTimestamp, orderBy } from "firebase/firestore";
 import { Clock, LogIn, LogOut, CheckCircle, Loader2, Briefcase, FileText } from "lucide-react";
 import { format } from "date-fns";
@@ -25,16 +27,18 @@ export function AttendanceTab() {
   const [notes, setNotes] = useState("");
 
   const attendanceQuery = useMemoFirebase(() => {
-    if (!authUser || !user) return null;
+    // Safety guard: Don't run if auth user doesn't match profile yet
+    if (!authUser || !user || user.id !== authUser.uid) return null;
     
     let q = query(collection(db, "attendance"));
     
-    // CRITICAL: Employee MUST filter by their own UID to avoid permission error
+    // Strict filtering based on role to match security rules
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role)) {
-      q = query(q, where("department", "==", user.department));
+      q = query(q, where("department", "==", user.department || "General"));
     }
+    // Admins can list all, no extra where needed
     
     return query(q, orderBy("clockIn", "desc"), limit(50));
   }, [db, user, authUser]);
@@ -62,7 +66,7 @@ export function AttendanceTab() {
     const record = {
       userId: authUser.uid,
       userName: user?.name || authUser.email || "Employee",
-      department: user?.department || "Default",
+      department: user?.department || "General",
       date: today,
       clockIn: now.toISOString(),
       status: isLate ? "Late" : "Present",

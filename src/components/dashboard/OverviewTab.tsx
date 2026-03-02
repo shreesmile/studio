@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -24,8 +25,8 @@ export function OverviewTab() {
   const db = useFirestore();
 
   const projectsQuery = useMemoFirebase(() => {
-    // CRITICAL: Do not initiate query until both auth and profile are fully loaded
-    if (!authUser || !user || !user.role) return null;
+    // CRITICAL: Ensure profile is fully synchronized before querying to match security rules
+    if (!authUser || !user || !user.role || user.id !== authUser.uid) return null;
     
     let q = query(collection(db, "projects"));
     
@@ -33,25 +34,26 @@ export function OverviewTab() {
       return query(q, orderBy("createdAt", "desc"), limit(10));
     }
     
-    // Employees can only see projects they are explicitly assigned to
+    // Employees can only list projects they are assigned to. 
+    // This MUST match the security rule to prevent "Missing or insufficient permissions".
     if (user.role === 'Employee') {
       return query(q, where("assignedTo", "array-contains", authUser.uid));
     }
     
     // Managers and Team Leads see departmental projects
-    return query(q, where("department", "==", user.department || "Default"));
+    return query(q, where("department", "==", user.department || "General"));
   }, [db, user, authUser]);
 
   const { data: projects, isLoading: loadingProjects } = useCollection(projectsQuery);
 
   const logsQuery = useMemoFirebase(() => {
-    if (!authUser || !user || !user.role) return null;
+    if (!authUser || !user || !user.role || user.id !== authUser.uid) return null;
     let q = query(collection(db, "work_logs"));
     
     if (user.role === 'Employee') return query(q, where("userId", "==", authUser.uid));
     if (user.role === 'Super Admin') return query(q, limit(20));
     
-    return query(q, where("department", "==", user.department || "Default"), limit(20));
+    return query(q, where("department", "==", user.department || "General"), limit(20));
   }, [db, user, authUser]);
 
   const { data: logs, isLoading: loadingLogs } = useCollection(logsQuery);
