@@ -44,7 +44,6 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isSignedIn();
-      // Super Admin/Admin see all. Manager/TL see department.
       allow list: if isSignedIn() && (getWeight() >= 4 || (getWeight() >= 2 && isMyDept(resource.data.department)));
       
       allow create: if isSignedIn() && (
@@ -77,7 +76,7 @@ service cloud.firestore {
       allow list: if isSignedIn() && (
         getWeight() >= 4 ||
         (getWeight() >= 2 && isMyDept(resource.data.department)) ||
-        (getWeight() < 4) // Individual branches handled by queries
+        (getWeight() < 4) // Queries must handle specific filtering
       );
 
       allow create: if isSignedIn() && getWeight() >= 3;
@@ -112,6 +111,19 @@ service cloud.firestore {
     }
 
     // -------------------------
+    // SUB TASKS
+    // -------------------------
+
+    match /sub_tasks/{subTaskId} {
+      allow read, list: if isSignedIn(); // Broad list allowed, UI filters by taskId
+      allow create: if isSignedIn() && getWeight() >= 1;
+      allow update, delete: if isSignedIn() && (
+        resource.data.createdBy == request.auth.uid || 
+        getWeight() >= 3
+      );
+    }
+
+    // -------------------------
     // WORK LOGS
     // -------------------------
 
@@ -123,6 +135,34 @@ service cloud.firestore {
       );
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // -------------------------
+    // ATTENDANCE
+    // -------------------------
+
+    match /attendance/{attendanceId} {
+      allow read, list: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        getWeight() >= 4 || 
+        (getWeight() >= 2 && isMyDept(resource.data.department))
+      );
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 4);
+    }
+
+    // -------------------------
+    // LEAVE REQUESTS
+    // -------------------------
+
+    match /leave_requests/{requestId} {
+      allow read, list: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        getWeight() >= 4 || 
+        (getWeight() >= 2 && isMyDept(resource.data.department))
+      );
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (getWeight() >= 2 && isMyDept(resource.data.department));
     }
   }
 }
