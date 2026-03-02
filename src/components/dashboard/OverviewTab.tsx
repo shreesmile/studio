@@ -24,8 +24,12 @@ export function OverviewTab() {
   const db = useFirestore();
 
   const projectsQuery = useMemoFirebase(() => {
-    if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) return null;
+    if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) {
+      console.log("[Overview] Identity not synchronized. Skipping project fetch.");
+      return null;
+    }
     
+    console.log(`[Overview] Initializing project fetch for clearance: ${user.role}`);
     let q = collection(db, "projects");
     
     // Admins see all
@@ -43,6 +47,7 @@ export function OverviewTab() {
       filters.push(where("department", "==", user.department));
     }
     
+    // The or() query aligns with projects security rules
     return query(q, or(...filters), limit(10));
   }, [db, user, authUser]);
 

@@ -12,8 +12,8 @@ service cloud.firestore {
     }
 
     function getUserData() {
-      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
-      return exists(userPath) ? get(userPath).data : null;
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(path) ? get(path).data : null;
     }
 
     function getRole() {
@@ -21,13 +21,16 @@ service cloud.firestore {
       return data != null ? data.role : "None";
     }
 
-    function getWeight() {
-      let role = getRole();
+    function getRoleWeight(role) {
       return role == "Super Admin" ? 5 :
              role == "Admin" ? 4 :
              role == "Manager" ? 3 :
              role == "Team Lead" ? 2 : 
              role == "Employee" ? 1 : 0;
+    }
+
+    function getWeight() {
+      return getRoleWeight(getRole());
     }
 
     function isMyDept(dept) {
@@ -41,11 +44,23 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isSignedIn();
-      // Super Admin and Admin can list all. Manager/TL can list department.
+      // Super Admin/Admin see all. Manager/TL see department.
       allow list: if isSignedIn() && (getWeight() >= 4 || (getWeight() >= 2 && isMyDept(resource.data.department)));
-      allow create: if isSignedIn() && (request.auth.uid == userId || getWeight() >= 4);
-      allow update: if isSignedIn() && (request.auth.uid == userId || getWeight() >= 4 || (getWeight() == 3 && isMyDept(resource.data.department)));
-      allow delete: if isSignedIn() && getWeight() >= 4;
+      
+      // Allow creation if Admin+ OR if Manager/TL creating a subordinate in their department
+      allow create: if isSignedIn() && (
+        request.auth.uid == userId || 
+        getWeight() >= 4 || 
+        (getWeight() >= 2 && isMyDept(request.resource.data.department) && getWeight() > getRoleWeight(request.resource.data.role))
+      );
+      
+      allow update: if isSignedIn() && (
+        request.auth.uid == userId || 
+        getWeight() >= 4 || 
+        (getWeight() >= 3 && isMyDept(resource.data.department) && getWeight() > getRoleWeight(resource.data.role))
+      );
+      
+      allow delete: if isSignedIn() && (getWeight() >= 4 && userId != request.auth.uid);
     }
 
     // -------------------------
@@ -61,14 +76,11 @@ service cloud.firestore {
       );
       allow create: if isSignedIn() && getWeight() >= 3;
       allow update: if isSignedIn() && (
-        resource.data.createdBy == request.auth.uid || 
         getWeight() >= 4 ||
+        resource.data.createdBy == request.auth.uid ||
         (getWeight() >= 3 && isMyDept(resource.data.department))
       );
-      allow delete: if isSignedIn() && (
-        resource.data.createdBy == request.auth.uid || 
-        getWeight() >= 4
-      );
+      allow delete: if isSignedIn() && (getWeight() >= 4 || resource.data.createdBy == request.auth.uid);
     }
 
     // -------------------------
@@ -103,22 +115,6 @@ service cloud.firestore {
       );
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-    }
-
-    // -------------------------
-    // ATTENDANCE & LEAVE
-    // -------------------------
-
-    match /attendance/{id} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3 || (getWeight() >= 2 && isMyDept(resource.data.department)));
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3);
-    }
-
-    match /leave_requests/{id} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3 || (getWeight() >= 2 && isMyDept(resource.data.department)));
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3);
     }
   }
 }

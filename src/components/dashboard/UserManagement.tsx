@@ -55,7 +55,7 @@ import {
   deleteDocumentNonBlocking,
   useUser
 } from "@/firebase";
-import { collection, doc, query, where, or } from "firebase/firestore";
+import { collection, doc, query, where } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore, UserRole } from "@/lib/auth-store";
 
@@ -89,8 +89,12 @@ export function UserManagement() {
   const currentRolePower = useMemo(() => ROLE_HIERARCHY[currentUser?.role || 'Employee'], [currentUser?.role]);
 
   const usersQuery = useMemoFirebase(() => {
-    if (!currentUser || !authUser || currentUser.id !== authUser.uid) return null;
+    if (!currentUser || !authUser || currentUser.id !== authUser.uid) {
+      console.log("[UserMgmt] Identity not synchronized. Skipping user list fetch.");
+      return null;
+    }
     
+    console.log(`[UserMgmt] Fetching directory for role: ${currentUser.role}`);
     // Super Admin & Admin can see all
     if (currentRolePower >= 4) {
       return collection(db, "users");
@@ -112,7 +116,7 @@ export function UserManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view'>('add');
   const [formData, setFormData] = useState<UserData>({
-    id: '', name: '', email: '', role: 'Employee', department: 'General', password: '', status: 'Active'
+    id: '', name: '', email: '', role: 'Employee', department: currentUser?.department || 'General', password: '', status: 'Active'
   });
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
@@ -135,16 +139,26 @@ export function UserManagement() {
     if (user) {
       setFormData(user);
     } else {
-      setFormData({ id: '', name: '', email: '', role: 'Employee', department: 'General', password: '', status: 'Active' });
+      setFormData({ 
+        id: '', 
+        name: '', 
+        email: '', 
+        role: 'Employee', 
+        department: currentUser?.department || 'General', 
+        password: '', 
+        status: 'Active' 
+      });
     }
     setIsModalOpen(true);
-  }, []);
+  }, [currentUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (modalMode === 'view' || isSubmitting) return;
     
     setIsSubmitting(true);
+    console.log(`[UserMgmt] Committing ${modalMode} action for ${formData.email}`);
+    
     try {
       if (modalMode === 'add') {
         const res = await fetch('/api/auth/register', {
@@ -155,15 +169,17 @@ export function UserManagement() {
         const result = await res.json();
         if (!res.ok) throw new Error(result.error);
 
+        console.log(`[UserMgmt] Auth identity created for UID: ${result.uid}. Syncing Firestore...`);
         const userData = { ...formData, id: result.uid, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-        await setDocumentNonBlocking(doc(db, "users", result.uid), userData, { merge: true });
+        setDocumentNonBlocking(doc(db, "users", result.uid), userData, { merge: true });
         toast({ title: "User Deployed", description: "Strategic identity initialized." });
       } else {
-        await updateDocumentNonBlocking(doc(db, "users", formData.id), { ...formData, updatedAt: new Date().toISOString() });
+        updateDocumentNonBlocking(doc(db, "users", formData.id), { ...formData, updatedAt: new Date().toISOString() });
         toast({ title: "Profile Updated", description: "Organizational changes committed." });
       }
       setIsModalOpen(false);
     } catch (err: any) {
+      console.error("[UserMgmt] Action failed:", err);
       toast({ variant: "destructive", title: "Action Failed", description: err.message });
     } finally {
       setIsSubmitting(false);
@@ -182,7 +198,7 @@ export function UserManagement() {
             {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
         </div>
-        {currentRolePower >= 4 && (
+        {currentRolePower >= 2 && (
           <Button onClick={() => handleOpenModal('add')} className="bg-primary">
             <UserPlus className="mr-2 h-4 w-4" /> Add Personnel
           </Button>
@@ -193,12 +209,12 @@ export function UserManagement() {
         <Table>
           <TableHeader className="bg-muted/30">
             <TableRow>
-              <TableHead className="font-bold">Identity</TableHead>
-              <TableHead className="font-bold">Clearance</TableHead>
-              <TableHead className="font-bold">Unit</TableHead>
-              <TableHead className="font-bold">Email</TableHead>
-              {showPasswords && <TableHead className="font-bold">Passkey</TableHead>}
-              <TableHead className="text-right font-bold">Actions</TableHead>
+              <TableHead className="font-bold uppercase tracking-widest text-[10px]">Identity</TableHead>
+              <TableHead className="font-bold uppercase tracking-widest text-[10px]">Clearance</TableHead>
+              <TableHead className="font-bold uppercase tracking-widest text-[10px]">Unit</TableHead>
+              <TableHead className="font-bold uppercase tracking-widest text-[10px]">Email</TableHead>
+              {showPasswords && <TableHead className="font-bold uppercase tracking-widest text-[10px]">Passkey</TableHead>}
+              <TableHead className="text-right font-bold uppercase tracking-widest text-[10px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -209,9 +225,9 @@ export function UserManagement() {
             ) : (
               filteredUsers.map((u) => (
                 <TableRow key={u.id}>
-                  <TableCell className="font-medium">{u.name}</TableCell>
-                  <TableCell><Badge variant={u.role === 'Super Admin' ? 'destructive' : 'secondary'} className="text-[10px]">{u.role}</Badge></TableCell>
-                  <TableCell>{u.department}</TableCell>
+                  <TableCell className="font-medium text-xs">{u.name}</TableCell>
+                  <TableCell><Badge variant={u.role === 'Super Admin' ? 'destructive' : 'secondary'} className="text-[9px] uppercase font-black">{u.role}</Badge></TableCell>
+                  <TableCell className="text-xs">{u.department}</TableCell>
                   <TableCell className="text-muted-foreground text-xs">{u.email}</TableCell>
                   {showPasswords && <TableCell className="font-mono text-[10px]">{u.password}</TableCell>}
                   <TableCell className="text-right">
@@ -244,20 +260,20 @@ export function UserManagement() {
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
             <div className="grid gap-2">
               <Label className="text-[10px] font-bold uppercase tracking-widest">Full Name</Label>
-              <Input disabled={modalMode === 'view'} value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
+              <Input disabled={modalMode === 'view'} value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required className="h-9 text-xs" />
             </div>
             <div className="grid gap-2">
               <Label className="text-[10px] font-bold uppercase tracking-widest">Email Address</Label>
-              <Input disabled={modalMode !== 'add'} value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
+              <Input disabled={modalMode !== 'add'} value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required className="h-9 text-xs" />
             </div>
             <div className="grid gap-2">
               <Label className="text-[10px] font-bold uppercase tracking-widest">Administrative Password</Label>
-              <Input disabled={modalMode === 'view'} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
+              <Input disabled={modalMode === 'view'} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required className="h-9 text-xs" />
             </div>
             <div className="grid gap-2">
               <Label className="text-[10px] font-bold uppercase tracking-widest">Assigned Clearance</Label>
-              <Select disabled={modalMode === 'view' || currentRolePower < 4} value={formData.role} onValueChange={(val: UserRole) => setFormData({ ...formData, role: val })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select disabled={modalMode === 'view'} value={formData.role} onValueChange={(val: UserRole) => setFormData({ ...formData, role: val })}>
+                <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.keys(ROLE_HIERARCHY).map(r => (
                     <SelectItem key={r} value={r} disabled={ROLE_HIERARCHY[r as UserRole] >= currentRolePower && currentUser?.role !== 'Super Admin'}>{r}</SelectItem>
@@ -267,7 +283,7 @@ export function UserManagement() {
             </div>
             <div className="grid gap-2">
               <Label className="text-[10px] font-bold uppercase tracking-widest">Department Unit</Label>
-              <Input disabled={modalMode === 'view'} value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })} required />
+              <Input disabled={modalMode === 'view' || currentRolePower < 3} value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })} required className="h-9 text-xs" />
             </div>
             <DialogFooter>
               {modalMode !== 'view' && (
