@@ -24,31 +24,26 @@ export function OverviewTab() {
   const db = useFirestore();
 
   const projectsQuery = useMemoFirebase(() => {
-    // CRITICAL: Ensure profile is fully synchronized and matches authUser to satisfy security rules
-    if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) {
-      console.log("[OverviewTab] Waiting for organizational profile sync...");
-      return null;
-    }
+    if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) return null;
     
-    console.log(`[OverviewTab] Initiating project discovery for ${user.role} (UID: ${authUser.uid})`);
     let q = collection(db, "projects");
     
-    // Admins and Super Admins see global overview
+    // Admins see all
     if (user.role === 'Super Admin' || user.role === 'Admin') {
       return query(q, limit(10));
     }
     
-    // ALIGNMENT WITH NEW SECURITY RULES:
-    // Read if Creator OR in assignedUsers array
-    // We use the 'or' composite filter to satisfy the rule for the entire list
-    return query(
-      q, 
-      or(
-        where("assignedUsers", "array-contains", authUser.uid),
-        where("createdBy", "==", authUser.uid)
-      ), 
-      limit(10)
-    );
+    // Others see assigned, created, or department-wide (for Managers/TL)
+    const filters = [
+      where("assignedUsers", "array-contains", authUser.uid),
+      where("createdBy", "==", authUser.uid)
+    ];
+
+    if (user.role === 'Manager' || user.role === 'Team Lead') {
+      filters.push(where("department", "==", user.department));
+    }
+    
+    return query(q, or(...filters), limit(10));
   }, [db, user, authUser]);
 
   const { data: projects, isLoading: loadingProjects } = useCollection(projectsQuery);
@@ -80,7 +75,7 @@ export function OverviewTab() {
           <CardContent>
             <div className="flex items-center gap-1 text-[9px] font-bold text-green-600 uppercase">
               <TrendingUp className="w-3 h-3" />
-              Strategic Growth
+              Organizational Growth
             </div>
           </CardContent>
         </Card>
@@ -91,27 +86,27 @@ export function OverviewTab() {
             <CardTitle className="text-3xl font-black text-primary">{totalEffort}h</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-[9px] font-bold text-muted-foreground uppercase">Captured Hours</div>
+            <div className="text-[9px] font-bold text-muted-foreground uppercase">Captured Performance</div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="pb-2">
-            <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Department</CardDescription>
+            <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Department Unit</CardDescription>
             <CardTitle className="text-3xl font-black text-accent truncate">{user?.department || "Operational"}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-[9px] font-bold text-muted-foreground uppercase">Clearance Level Active</div>
+            <div className="text-[9px] font-bold text-muted-foreground uppercase">Assigned Command</div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="pb-2">
-            <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">System Status</CardDescription>
-            <CardTitle className="text-3xl font-black text-primary">Online</CardTitle>
+            <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">System Integrity</CardDescription>
+            <CardTitle className="text-3xl font-black text-primary">SECURE</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-[9px] font-bold text-muted-foreground uppercase">MNC Sync Verified</div>
+            <div className="text-[9px] font-bold text-muted-foreground uppercase">Sync Protocol Active</div>
           </CardContent>
         </Card>
       </div>
@@ -121,7 +116,7 @@ export function OverviewTab() {
           <CardHeader className="border-b bg-muted/10">
             <CardTitle className="text-sm font-bold flex items-center gap-2 uppercase tracking-widest">
               <BarChart3 className="w-4 h-4 text-primary" />
-              Strategic Portfolio Insight
+              Strategic Project Insight
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -144,7 +139,7 @@ export function OverviewTab() {
               ))}
               {(!projects || projects.length === 0) && !loadingProjects && (
                 <div className="p-10 text-center text-muted-foreground text-[10px] uppercase font-bold tracking-widest opacity-40">
-                  No active strategic assets in current security layer.
+                  No operational assets found in current clearance.
                 </div>
               )}
             </div>
@@ -156,15 +151,15 @@ export function OverviewTab() {
             <CardHeader>
               <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
                 <BrainCircuit className="w-4 h-4 text-accent" />
-                AI Strategy Engine
+                AI Command Insight
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-[11px] text-muted-foreground leading-relaxed italic">
-                "Production analysis suggests {user?.department || "General"} department is performing at optimal levels. Recommendation: Synchronize upcoming sub-task deadlines."
+                "System analysis indicates {user?.department || "General"} unit is maintaining optimal KPIs. Recommendation: Finalize pending task approvals for efficiency spikes."
               </p>
               <Button variant="outline" size="sm" className="w-full text-[9px] font-black uppercase tracking-widest border-accent/20 text-accent hover:bg-accent/10">
-                Refresh Neural Context
+                Synchronize Strategy
                 <Sparkles className="ml-2 w-3 h-3" />
               </Button>
             </CardContent>
@@ -172,16 +167,16 @@ export function OverviewTab() {
 
           <Card className="border-primary/10 bg-white">
             <CardHeader className="pb-2">
-              <CardTitle className="text-[10px] font-black uppercase tracking-widest">System Readiness</CardTitle>
+              <CardTitle className="text-[10px] font-black uppercase tracking-widest">Clearance Status</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                <span className="text-[10px] font-bold uppercase">Auth Layer: SECURE</span>
+                <span className="text-[10px] font-bold uppercase">Identity Verified</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                <span className="text-[10px] font-bold uppercase">Storage: SYNCED</span>
+                <span className="text-[10px] font-bold uppercase">Permission Handshake: OK</span>
               </div>
             </CardContent>
           </Card>

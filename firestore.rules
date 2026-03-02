@@ -41,7 +41,8 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isSignedIn();
-      allow list: if isSignedIn() && getWeight() >= 2;
+      // Super Admin and Admin can list all. Manager/TL can list department.
+      allow list: if isSignedIn() && (getWeight() >= 4 || (getWeight() >= 2 && isMyDept(resource.data.department)));
       allow create: if isSignedIn() && (request.auth.uid == userId || getWeight() >= 4);
       allow update: if isSignedIn() && (request.auth.uid == userId || getWeight() >= 4 || (getWeight() == 3 && isMyDept(resource.data.department)));
       allow delete: if isSignedIn() && getWeight() >= 4;
@@ -52,20 +53,21 @@ service cloud.firestore {
     // -------------------------
 
     match /projects/{projectId} {
-      // NEW REQUIREMENTS:
-      // Read: Authenticated AND (Creator OR in assignedUsers OR Admin+)
       allow read: if isSignedIn() && (
+        getWeight() >= 4 || 
         resource.data.createdBy == request.auth.uid || 
         request.auth.uid in resource.data.assignedUsers ||
-        getWeight() >= 4
+        (getWeight() >= 2 && isMyDept(resource.data.department))
       );
-      
-      // Create: Any authenticated user
-      allow create: if isSignedIn();
-      
-      // Update/Delete: Only the creator
-      allow update, delete: if isSignedIn() && (
-        resource.data.createdBy == request.auth.uid
+      allow create: if isSignedIn() && getWeight() >= 3;
+      allow update: if isSignedIn() && (
+        resource.data.createdBy == request.auth.uid || 
+        getWeight() >= 4 ||
+        (getWeight() >= 3 && isMyDept(resource.data.department))
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.createdBy == request.auth.uid || 
+        getWeight() >= 4
       );
     }
 
@@ -90,16 +92,6 @@ service cloud.firestore {
     }
 
     // -------------------------
-    // SUB TASKS
-    // -------------------------
-
-    match /sub_tasks/{subTaskId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && (resource.data.createdBy == request.auth.uid || getWeight() >= 3);
-    }
-
-    // -------------------------
     // WORK LOGS
     // -------------------------
 
@@ -109,35 +101,22 @@ service cloud.firestore {
         getWeight() >= 4 || 
         (getWeight() >= 3 && isMyDept(resource.data.department))
       );
-      
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
     // -------------------------
-    // ATTENDANCE
+    // ATTENDANCE & LEAVE
     // -------------------------
 
     match /attendance/{id} {
-      allow read: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || 
-        getWeight() >= 3 || 
-        (getWeight() >= 2 && isMyDept(resource.data.department))
-      );
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3 || (getWeight() >= 2 && isMyDept(resource.data.department)));
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3);
     }
 
-    // -------------------------
-    // LEAVE REQUESTS
-    // -------------------------
-
     match /leave_requests/{id} {
-      allow read: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || 
-        getWeight() >= 3 || 
-        (getWeight() >= 2 && isMyDept(resource.data.department))
-      );
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3 || (getWeight() >= 2 && isMyDept(resource.data.department)));
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3);
     }

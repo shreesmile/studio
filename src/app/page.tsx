@@ -44,26 +44,24 @@ function DashboardContent() {
       return;
     }
 
-    // Only subscribe if the user ID has changed or profile is missing
-    if (authUser && (syncRef.current !== authUser.uid || !profile || profile.id !== authUser.uid)) {
-      console.log(`[ProfileSync] Initializing profile discovery for UID: ${authUser.uid}`);
+    if (authUser && syncRef.current !== authUser.uid) {
+      console.log(`[ProfileSync] Initializing for UID: ${authUser.uid}`);
       syncRef.current = authUser.uid;
       setIsInitializing(true);
-      setProfileMissing(false);
       
       const unsub = onSnapshot(doc(db, "users", authUser.uid), (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          console.log(`[ProfileSync] Profile identified: ${data.name} (${data.role})`);
+          console.log(`[ProfileSync] Profile verified: ${data.name} (${data.role})`);
           setProfile(data as any);
           setProfileMissing(false);
         } else {
-          console.warn(`[ProfileSync] Profile missing for UID: ${authUser.uid}`);
+          console.warn(`[ProfileSync] Profile document missing for UID: ${authUser.uid}`);
           setProfileMissing(true);
         }
         setIsInitializing(false);
       }, (err) => {
-        console.error("[ProfileSync] Synchronization failure:", err);
+        console.error("[ProfileSync] Sync failure:", err);
         setProfileMissing(true);
         setIsInitializing(false);
       });
@@ -74,12 +72,12 @@ function DashboardContent() {
   }, [authUser, isUserLoading, db, setProfile, clearProfile, profile]);
 
   const handleTabChange = useCallback((id: string) => {
-    console.log(`[Navigation] Transitioning to: ${id}`);
+    console.log(`[Navigation] Active Tab: ${id}`);
     setActiveTab(id);
   }, []);
 
   const handleLogout = async () => {
-    console.log("[Auth] Logout sequence initiated.");
+    console.log("[Auth] Session termination initiated.");
     await signOut(auth);
     clearProfile();
     window.location.reload();
@@ -89,7 +87,7 @@ function DashboardContent() {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Synchronizing Terminal Clearance...</p>
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Synchronizing Security Terminal...</p>
       </div>
     );
   }
@@ -102,9 +100,9 @@ function DashboardContent() {
             <AlertTriangle className="text-destructive w-10 h-10" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-2xl font-black uppercase tracking-tighter text-foreground">Clearance denied</h1>
+            <h1 className="text-2xl font-black uppercase tracking-tighter text-foreground">Access Restricted</h1>
             <p className="text-xs text-muted-foreground leading-relaxed px-4">
-              Your authentication is valid, but an organizational profile (Role/Dept) was not found in the directory.
+              Authenticated user session found, but organizational identity (Role/Dept) is not yet initialized in the directory.
             </p>
           </div>
           <Button onClick={handleLogout} variant="outline" className="w-full h-12 uppercase tracking-widest font-black text-[10px]">
@@ -124,7 +122,7 @@ function DashboardContent() {
               <ShieldCheck className="text-white w-10 h-10" />
             </div>
             <h1 className="text-4xl font-black text-primary tracking-tighter uppercase italic text-center">RoleFlow</h1>
-            <p className="mt-2 text-muted-foreground font-bold uppercase tracking-widest text-[10px]">Strategic Access Terminal</p>
+            <p className="mt-2 text-muted-foreground font-bold uppercase tracking-widest text-[10px]">Strategic RBAC Platform</p>
           </div>
           <div className="bg-white p-8 rounded-[2rem] shadow-2xl border border-white space-y-6">
             <LoginForm />
@@ -155,14 +153,14 @@ function DashboardContent() {
 
   const getPageTitle = () => {
     switch (activeTab) {
-      case "dashboard": return "Operational Overview";
-      case "projects": return "Project Portfolio";
+      case "dashboard": return "Command Center";
+      case "projects": return "Strategic Projects";
       case "tasks": return "Workflow Engine";
-      case "timelogs": return "Work Log Terminal";
-      case "users": return "Strategic Directory";
-      case "reports": return "Analytics Center";
-      case "attendance": return "Shift Terminal";
-      case "leave": return "Absence Manager";
+      case "timelogs": return "Production Logs";
+      case "users": return "Directory Management";
+      case "reports": return "Performance Intelligence";
+      case "attendance": return "Operation Terminal";
+      case "leave": return "Absence Control";
       default: return "Enterprise Dashboard";
     }
   };
@@ -182,7 +180,7 @@ function DashboardContent() {
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <p className="text-[9px] font-bold text-muted-foreground uppercase leading-none">Status</p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase leading-none">Security Level</p>
                 <p className="text-[11px] font-black text-accent uppercase">{profile?.role || "Synchronizing..."}</p>
               </div>
             </div>

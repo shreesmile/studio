@@ -38,31 +38,24 @@ export function ProjectManagement() {
   });
 
   const projectsQuery = useMemoFirebase(() => {
-    // CRITICAL: Ensure profile is fully synchronized before initiating query to match security rules
-    if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) {
-      console.log("[ProjectManagement] Waiting for clearance synchronization...");
-      return null;
-    }
+    if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) return null;
     
-    console.log(`[ProjectManagement] Initiating query for UID: ${authUser.uid} (Role: ${user.role})`);
     let q = collection(db, "projects");
     
-    // Admins and Super Admins can broad list
     if (user.role === 'Super Admin' || user.role === 'Admin') {
       return query(q, limit(50));
     }
     
-    // NEW REQUIREMENTS ALIGNMENT:
-    // User can read if createdBy == uid OR uid in assignedUsers
-    // For the list query to satisfy this, we MUST use an 'or' filter
-    return query(
-      q, 
-      or(
-        where("assignedUsers", "array-contains", authUser.uid),
-        where("createdBy", "==", authUser.uid)
-      ), 
-      limit(50)
-    );
+    const filters = [
+      where("assignedUsers", "array-contains", authUser.uid),
+      where("createdBy", "==", authUser.uid)
+    ];
+
+    if (user.role === 'Manager' || user.role === 'Team Lead') {
+      filters.push(where("department", "==", user.department));
+    }
+    
+    return query(q, or(...filters), limit(50));
   }, [db, user, authUser]);
 
   const { data: projects, isLoading } = useCollection(projectsQuery);
@@ -75,16 +68,15 @@ export function ProjectManagement() {
       ...newProject,
       department: user.department || "General",
       createdBy: authUser.uid,
-      assignedUsers: [authUser.uid], // Creator is always assigned
+      assignedUsers: [authUser.uid], 
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
 
-    console.log("[ProjectManagement] Deploying new strategic asset:", projectData);
     addDocumentNonBlocking(collection(db, "projects"), projectData);
     setIsModalOpen(false);
     setNewProject({ name: '', description: '', startDate: '', endDate: '', priority: 'Medium', status: 'Not Started' });
-    toast({ title: "Project Created", description: "Strategic workspace deliverables initialized." });
+    toast({ title: "Project Initialized", description: "Strategic asset added to organizational portfolio." });
   };
 
   const getPriorityColor = (priority: string) => {
@@ -100,20 +92,22 @@ export function ProjectManagement() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <h2 className="text-xl font-black text-primary uppercase tracking-tighter">Project Portfolio</h2>
-          <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Strategic Portfolio Assets</p>
+          <h2 className="text-xl font-black text-primary uppercase tracking-tighter">Strategic Portfolio</h2>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Organizational Deliverables</p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} className="bg-primary shadow-lg hover:shadow-primary/20">
-          <Plus className="mr-2 h-4 w-4" />
-          New Project
-        </Button>
+        {user?.role !== 'Employee' && (
+          <Button onClick={() => setIsModalOpen(true)} className="bg-primary shadow-lg hover:shadow-primary/20">
+            <Plus className="mr-2 h-4 w-4" />
+            New Project
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {isLoading ? (
           <div className="col-span-full py-20 flex flex-col items-center gap-4">
             <Loader2 className="animate-spin text-primary/20 w-10 h-10" />
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest italic animate-pulse">Accessing clearance layer...</p>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest italic animate-pulse">Accessing Security Layer...</p>
           </div>
         ) : projects?.map((project) => (
           <Card key={project.id} className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden bg-white">
@@ -148,7 +142,7 @@ export function ProjectManagement() {
               <div className="flex items-center justify-between pt-2">
                  <div className="flex items-center gap-2">
                    <Users className="w-3.5 h-3.5 text-muted-foreground" />
-                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{project.assignedUsers?.length || 0} Members</span>
+                   <span className="text-[9px] font-bold text-muted-foreground uppercase">{project.assignedUsers?.length || 0} Personnel</span>
                  </div>
                  <Badge variant="secondary" className="text-[9px] font-bold uppercase">{project.department}</Badge>
               </div>
@@ -158,7 +152,7 @@ export function ProjectManagement() {
         {(!projects || projects.length === 0) && !isLoading && (
           <div className="col-span-full py-20 text-center border-2 border-dashed rounded-[2rem] bg-white/50">
             <Briefcase className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">No strategic assets available in current clearance level.</p>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">No strategic assets available at this clearance.</p>
           </div>
         )}
       </div>
@@ -166,9 +160,9 @@ export function ProjectManagement() {
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-black uppercase tracking-tighter text-xl">Initialize Strategic Project</DialogTitle>
+            <DialogTitle className="font-black uppercase tracking-tighter text-xl">Deploy Strategic Project</DialogTitle>
             <DialogDescription className="text-[10px] font-bold uppercase tracking-widest opacity-60">
-              Define a new organizational deliverable and workspace.
+              Define new organizational deliverable and assigned command unit.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4 pt-4">
@@ -177,7 +171,7 @@ export function ProjectManagement() {
               <Input required value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="e.g., Enterprise Portal Migration" />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-widest">Operational Summary</Label>
+              <Label className="text-[10px] font-bold uppercase tracking-widest">Mission Summary</Label>
               <Textarea required value={newProject.description} onChange={e => setNewProject({...newProject, description: e.target.value})} placeholder="Define workspace scope..." />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -192,7 +186,7 @@ export function ProjectManagement() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest">Priority Layer</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-widest">Priority Class</Label>
                 <Select value={newProject.priority} onValueChange={v => setNewProject({...newProject, priority: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -204,7 +198,7 @@ export function ProjectManagement() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest">Initial Status</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-widest">Operational Status</Label>
                 <Select value={newProject.status} onValueChange={v => setNewProject({...newProject, status: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -216,7 +210,7 @@ export function ProjectManagement() {
               </div>
             </div>
             <DialogFooter className="pt-4">
-              <Button type="submit" className="w-full h-11 bg-primary font-bold uppercase tracking-widest text-xs">Deploy Workspace</Button>
+              <Button type="submit" className="w-full h-11 bg-primary font-bold uppercase tracking-widest text-xs">Authorize Deployment</Button>
             </DialogFooter>
           </form>
         </DialogContent>
