@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from "react";
@@ -9,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, useUser, addDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, orderBy, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, orderBy, serverTimestamp, limit } from "firebase/firestore";
 import { Briefcase, Plus, Calendar, Target, Loader2, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -37,18 +38,21 @@ export function ProjectManagement() {
   });
 
   const projectsQuery = useMemoFirebase(() => {
-    if (!authUser || !user) return null;
+    if (!authUser || !user || !user.role) return null;
+    
     let q = query(collection(db, "projects"));
     
     if (user.role === 'Super Admin' || user.role === 'Admin') {
-      return query(q, orderBy("createdAt", "desc"));
+      return query(q, orderBy("createdAt", "desc"), limit(50));
     }
     
     if (user.role === 'Employee') {
+      // Employee MUST filter by assignedTo to satisfy security rules
       return query(q, where("assignedTo", "array-contains", authUser.uid));
     }
     
-    return query(q, where("department", "==", user.department), orderBy("createdAt", "desc"));
+    // Managers and Team Leads filter by department
+    return query(q, where("department", "==", user.department || "Default"), orderBy("createdAt", "desc"));
   }, [db, user, authUser]);
 
   const { data: projects, isLoading } = useCollection(projectsQuery);
@@ -59,7 +63,7 @@ export function ProjectManagement() {
 
     const projectData = {
       ...newProject,
-      department: user.department,
+      department: user.department || "Default",
       createdBy: authUser.uid,
       assignedTo: [],
       createdAt: serverTimestamp(),
@@ -142,6 +146,12 @@ export function ProjectManagement() {
             </CardContent>
           </Card>
         ))}
+        {(!projects || projects.length === 0) && !isLoading && (
+          <div className="col-span-full py-20 text-center border-2 border-dashed rounded-[2rem] bg-white/50">
+            <Briefcase className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">No strategic projects discovered in this security layer.</p>
+          </div>
+        )}
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

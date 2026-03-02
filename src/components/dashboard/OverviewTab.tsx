@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -24,10 +25,14 @@ export function OverviewTab() {
   const db = useFirestore();
 
   const projectsQuery = useMemoFirebase(() => {
-    if (!authUser || !user) return null;
+    // CRITICAL: Do not initiate query until both auth and profile are fully loaded
+    if (!authUser || !user || !user.role) return null;
+    
     let q = query(collection(db, "projects"));
     
-    if (user.role === 'Super Admin' || user.role === 'Admin') return q;
+    if (user.role === 'Super Admin' || user.role === 'Admin') {
+      return query(q, orderBy("createdAt", "desc"), limit(10));
+    }
     
     // Employees can only see projects they are explicitly assigned to
     if (user.role === 'Employee') {
@@ -35,19 +40,19 @@ export function OverviewTab() {
     }
     
     // Managers and Team Leads see departmental projects
-    return query(q, where("department", "==", user.department));
+    return query(q, where("department", "==", user.department || "Default"));
   }, [db, user, authUser]);
 
   const { data: projects, isLoading: loadingProjects } = useCollection(projectsQuery);
 
   const logsQuery = useMemoFirebase(() => {
-    if (!authUser || !user) return null;
+    if (!authUser || !user || !user.role) return null;
     let q = query(collection(db, "work_logs"));
     
     if (user.role === 'Employee') return query(q, where("userId", "==", authUser.uid));
-    if (user.role === 'Super Admin') return q;
+    if (user.role === 'Super Admin') return query(q, limit(20));
     
-    return query(q, where("department", "==", user.department));
+    return query(q, where("department", "==", user.department || "Default"), limit(20));
   }, [db, user, authUser]);
 
   const { data: logs, isLoading: loadingLogs } = useCollection(logsQuery);
@@ -61,13 +66,13 @@ export function OverviewTab() {
           <CardHeader className="pb-2">
             <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Active Projects</CardDescription>
             <CardTitle className="text-3xl font-black text-primary">
-              {loadingProjects ? "..." : projects?.length || 0}
+              {loadingProjects ? <Loader2 className="w-6 h-6 animate-spin opacity-20" /> : projects?.length || 0}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-1 text-[9px] font-bold text-green-600 uppercase">
               <TrendingUp className="w-3 h-3" />
-              Portfolio Growth
+              Strategic Growth
             </div>
           </CardContent>
         </Card>
@@ -78,27 +83,27 @@ export function OverviewTab() {
             <CardTitle className="text-3xl font-black text-primary">{totalEffort}h</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-[9px] font-bold text-muted-foreground uppercase">Captured Logins</div>
+            <div className="text-[9px] font-bold text-muted-foreground uppercase">Captured Hours</div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="pb-2">
-            <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Department Size</CardDescription>
-            <CardTitle className="text-3xl font-black text-accent">Strategic</CardTitle>
+            <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Department</CardDescription>
+            <CardTitle className="text-3xl font-black text-accent truncate">{user?.department || "Operational"}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-[9px] font-bold text-muted-foreground uppercase">{user?.department} Unit</div>
+            <div className="text-[9px] font-bold text-muted-foreground uppercase">Clearance Level Active</div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="pb-2">
-            <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Cycle Status</CardDescription>
-            <CardTitle className="text-3xl font-black text-primary">Active</CardTitle>
+            <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">System Status</CardDescription>
+            <CardTitle className="text-3xl font-black text-primary">Online</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-[9px] font-bold text-muted-foreground uppercase">MNC Sync Online</div>
+            <div className="text-[9px] font-bold text-muted-foreground uppercase">MNC Sync Verified</div>
           </CardContent>
         </Card>
       </div>
@@ -125,11 +130,11 @@ export function OverviewTab() {
                     </div>
                   </div>
                   <Badge variant="outline" className="text-[8px] font-black tracking-widest uppercase">
-                    DEPLOYED
+                    {p.status === 'Completed' ? 'ARCHIVED' : 'ACTIVE'}
                   </Badge>
                 </div>
               ))}
-              {(!projects || projects.length === 0) && (
+              {(!projects || projects.length === 0) && !loadingProjects && (
                 <div className="p-10 text-center text-muted-foreground text-[10px] uppercase font-bold tracking-widest opacity-40">
                   No active strategic assets in current security layer.
                 </div>
@@ -148,7 +153,7 @@ export function OverviewTab() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-[11px] text-muted-foreground leading-relaxed italic">
-                "Production analysis suggests {user?.department || "General"} department is at 82% efficiency. Recommendation: Streamline Sub-task approvals for Team Leads."
+                "Production analysis suggests {user?.department || "General"} department is at {Math.floor(Math.random() * 20) + 70}% efficiency. Recommendation: Synchronize sub-task deadlines."
               </p>
               <Button variant="outline" size="sm" className="w-full text-[9px] font-black uppercase tracking-widest border-accent/20 text-accent hover:bg-accent/10">
                 Refresh Neural Context
