@@ -86,6 +86,8 @@ export const TaskManagement = React.memo(() => {
   const { data: allUsers } = useCollection(usersRef);
 
   const subTasksRef = useMemoFirebase(() => {
+    // SECURITY: Sub-tasks listing is allowed for all signed-in users, 
+    // but we add a guard to ensure authUser is present.
     if (!authUser) return null;
     return query(collection(db, "sub_tasks"), limit(100));
   }, [db, authUser]);

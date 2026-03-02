@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
@@ -40,17 +41,23 @@ export function AttendanceTab() {
   const [notes, setNotes] = useState("");
 
   const attendanceQuery = useMemoFirebase(() => {
+    // SECURITY: Must wait for full identity handshake to satisfy list rules
     if (!authUser || !user || user.id !== authUser.uid || !user.role || !user.department) return null;
     
-    let q = query(collection(db, "attendance"));
+    let q = collection(db, "attendance");
     
-    if (user.role === 'Employee') {
-      q = query(q, where("userId", "==", authUser.uid));
-    } else if (['Team Lead', 'Manager'].includes(user.role)) {
-      q = query(q, where("department", "==", user.department));
+    // Admins and Super Admins can list all records
+    if (user.role === 'Super Admin' || user.role === 'Admin') {
+      return query(q, orderBy("clockIn", "desc"), limit(50));
     }
-    
-    return query(q, orderBy("clockIn", "desc"), limit(50));
+
+    // Managers and Team Leads are scoped to their department
+    if (['Team Lead', 'Manager'].includes(user.role)) {
+      return query(q, where("department", "==", user.department), orderBy("clockIn", "desc"), limit(50));
+    }
+
+    // Employees are strictly limited to their own records
+    return query(q, where("userId", "==", authUser.uid), orderBy("clockIn", "desc"), limit(50));
   }, [db, user, authUser]);
 
   const { data: records, isLoading } = useCollection(attendanceQuery);

@@ -25,31 +25,35 @@ export function LeaveManagement() {
   const [newRequest, setNewRequest] = useState({ startDate: '', endDate: '', reason: '' });
 
   const leaveQuery = useMemoFirebase(() => {
-    // Safety guard: Must be fully synced to match security rules
-    if (!authUser || !user || user.id !== authUser.uid || !user.role) return null;
+    // SECURITY: Must wait for full identity handshake to satisfy list rules
+    if (!authUser || !user || user.id !== authUser.uid || !user.role || !user.department) return null;
     
-    let q = query(collection(db, "leave_requests"));
+    let q = collection(db, "leave_requests");
     
-    // Employees see ONLY their own records.
-    if (user.role === 'Employee') {
-      q = query(q, where("userId", "==", authUser.uid));
-    } else if (['Team Lead', 'Manager'].includes(user.role)) {
-      q = query(q, where("department", "==", user.department || "General"));
+    // Admins and Super Admins can list all records
+    if (user.role === 'Super Admin' || user.role === 'Admin') {
+      return query(q, orderBy("startDate", "desc"));
     }
-    
-    return query(q, orderBy("startDate", "desc"));
+
+    // Managers and Team Leads are scoped to their department
+    if (['Team Lead', 'Manager'].includes(user.role)) {
+      return query(q, where("department", "==", user.department), orderBy("startDate", "desc"));
+    }
+
+    // Employees are strictly limited to their own records
+    return query(q, where("userId", "==", authUser.uid), orderBy("startDate", "desc"));
   }, [db, user, authUser]);
 
   const { data: requests, isLoading } = useCollection(leaveQuery);
 
   const handleRequestSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!authUser) return;
+    if (!authUser || !user) return;
 
     const requestData = {
       userId: authUser.uid,
-      userName: user?.name || authUser.email || "Employee",
-      department: user?.department || "General",
+      userName: user.name,
+      department: user.department,
       ...newRequest,
       status: 'Pending',
       createdAt: serverTimestamp(),

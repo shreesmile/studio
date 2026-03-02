@@ -12,6 +12,7 @@ service cloud.firestore {
     }
 
     function getUserData() {
+      // Simplified path for performance and reliability
       let path = /databases/$(database)/documents/users/$(request.auth.uid);
       return exists(path) ? get(path).data : null;
     }
@@ -44,7 +45,10 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isSignedIn();
-      allow list: if isSignedIn() && (getWeight() >= 4 || (getWeight() >= 2 && isMyDept(resource.data.department)));
+      allow list: if isSignedIn() && (
+        getWeight() >= 4 || 
+        (getWeight() >= 2 && isMyDept(resource.data.department))
+      );
       
       allow create: if isSignedIn() && (
         request.auth.uid == userId || 
@@ -76,7 +80,8 @@ service cloud.firestore {
       allow list: if isSignedIn() && (
         getWeight() >= 4 ||
         (getWeight() >= 2 && isMyDept(resource.data.department)) ||
-        (getWeight() < 4) // Queries must handle specific filtering in UI
+        resource.data.createdBy == request.auth.uid || 
+        request.auth.uid in resource.data.assignedUsers
       );
 
       allow create: if isSignedIn() && getWeight() >= 3;
@@ -95,7 +100,7 @@ service cloud.firestore {
     // -------------------------
 
     match /tasks/{taskId} {
-      allow read: if isSignedIn() && (
+      allow read, list: if isSignedIn() && (
         resource.data.assignedTo == request.auth.uid || 
         resource.data.createdBy == request.auth.uid || 
         getWeight() >= 4 ||
@@ -128,7 +133,12 @@ service cloud.firestore {
     // -------------------------
 
     match /attendance/{attendanceId} {
-      allow read, list: if isSignedIn() && (
+      allow get: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        getWeight() >= 4 || 
+        (getWeight() >= 2 && isMyDept(resource.data.department))
+      );
+      allow list: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
         getWeight() >= 4 || 
         (getWeight() >= 2 && isMyDept(resource.data.department))
@@ -142,7 +152,12 @@ service cloud.firestore {
     // -------------------------
 
     match /leave_requests/{requestId} {
-      allow read, list: if isSignedIn() && (
+      allow get: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        getWeight() >= 4 || 
+        (getWeight() >= 2 && isMyDept(resource.data.department))
+      );
+      allow list: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
         getWeight() >= 4 || 
         (getWeight() >= 2 && isMyDept(resource.data.department))
