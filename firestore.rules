@@ -98,12 +98,18 @@ service cloud.firestore {
     // -------------------------
 
     match /work_logs/{logId} {
+      // Users can only read, update, or delete their own logs.
+      // Admins (Weight >= 4) and Managers (Weight >= 3) can read logs within their hierarchy/department for oversight.
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
-        getWeight() >= 3 || 
-        (getWeight() >= 2 && isMyDept(resource.data.department))
+        getWeight() >= 4 || 
+        (getWeight() >= 3 && isMyDept(resource.data.department))
       );
+      
+      // Users can only create logs for themselves.
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      
+      // Users can only update or delete their own logs.
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 

@@ -39,13 +39,15 @@ export function WorkLogTerminal() {
   });
 
   const projectsQuery = useMemoFirebase(() => {
-    if (!authUser || !user || !user.role) return null;
+    // Wait for organizational sync to satisfy security rules
+    if (!authUser || !user || !user.role || user.id !== authUser.uid) return null;
+    
     let q = query(collection(db, "projects"));
     
     // STRICT filtering based on role to match security rules
     if (user.role === 'Employee') {
       q = query(q, where("assignedTo", "array-contains", authUser.uid));
-    } else {
+    } else if (user.role !== 'Super Admin' && user.role !== 'Admin') {
       q = query(q, where("department", "==", user.department || "General"));
     }
     return q;
@@ -54,7 +56,9 @@ export function WorkLogTerminal() {
   const { data: projects } = useCollection(projectsQuery);
 
   const logsQuery = useMemoFirebase(() => {
-    if (!authUser || !user || !user.role) return null;
+    // Wait for organizational sync to satisfy security rules
+    if (!authUser || !user || !user.role || user.id !== authUser.uid) return null;
+    
     let q = query(collection(db, "work_logs"));
     
     // Employees see ONLY their own logs
