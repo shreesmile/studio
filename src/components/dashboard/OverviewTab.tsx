@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -10,8 +11,7 @@ import {
   BrainCircuit, 
   Loader2, 
   Briefcase, 
-  BarChart3,
-  CheckCircle2
+  BarChart3
 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,9 @@ export const OverviewTab = React.memo(() => {
   const db = useFirestore();
 
   const projectsQuery = useMemoFirebase(() => {
+    // SECURITY: Defensive wait for full profile sync to satisfy rules
     if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) {
+      console.log("[Overview] User profile not yet synchronized. Deferred projects query.");
       return null;
     }
     
@@ -35,6 +37,7 @@ export const OverviewTab = React.memo(() => {
       return query(q, limit(10));
     }
     
+    // Non-admins MUST use filters that prove access to satisfy security rules
     const filters = [
       where("assignedUsers", "array-contains", authUser.uid),
       where("createdBy", "==", authUser.uid)
@@ -51,7 +54,7 @@ export const OverviewTab = React.memo(() => {
 
   const logsQuery = useMemoFirebase(() => {
     if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) return null;
-    let q = query(collection(db, "work_logs"));
+    let q = collection(db, "work_logs");
     
     if (user.role === 'Employee') return query(q, where("userId", "==", authUser.uid), limit(20));
     if (user.role === 'Super Admin' || user.role === 'Admin') return query(q, limit(20));
@@ -66,7 +69,6 @@ export const OverviewTab = React.memo(() => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* LCP Optimization: Hero image with priority */}
       <div className="relative w-full h-32 rounded-3xl overflow-hidden shadow-sm mb-8 bg-muted">
         {heroImage && (
           <Image 
@@ -160,6 +162,11 @@ export const OverviewTab = React.memo(() => {
                   </Badge>
                 </div>
               ))}
+              {(!projects || projects.length === 0) && !loadingProjects && (
+                <div className="p-8 text-center text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-40">
+                  No active strategic assets in scope.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

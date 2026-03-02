@@ -47,7 +47,6 @@ service cloud.firestore {
       // Super Admin/Admin see all. Manager/TL see department.
       allow list: if isSignedIn() && (getWeight() >= 4 || (getWeight() >= 2 && isMyDept(resource.data.department)));
       
-      // Allow creation if Admin+ OR if Manager/TL creating a subordinate in their department
       allow create: if isSignedIn() && (
         request.auth.uid == userId || 
         getWeight() >= 4 || 
@@ -68,18 +67,27 @@ service cloud.firestore {
     // -------------------------
 
     match /projects/{projectId} {
-      allow read: if isSignedIn() && (
+      allow get: if isSignedIn() && (
         getWeight() >= 4 || 
         resource.data.createdBy == request.auth.uid || 
         request.auth.uid in resource.data.assignedUsers ||
         (getWeight() >= 2 && isMyDept(resource.data.department))
       );
+      
+      allow list: if isSignedIn() && (
+        getWeight() >= 4 ||
+        (getWeight() >= 2 && isMyDept(resource.data.department)) ||
+        (getWeight() < 4) // Individual branches handled by queries
+      );
+
       allow create: if isSignedIn() && getWeight() >= 3;
+      
       allow update: if isSignedIn() && (
         getWeight() >= 4 ||
         resource.data.createdBy == request.auth.uid ||
         (getWeight() >= 3 && isMyDept(resource.data.department))
       );
+      
       allow delete: if isSignedIn() && (getWeight() >= 4 || resource.data.createdBy == request.auth.uid);
     }
 

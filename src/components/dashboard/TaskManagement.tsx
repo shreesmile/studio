@@ -9,7 +9,7 @@ import { Plus, Calendar, Filter, User, Loader2, Settings2, ClipboardList, Layers
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore, UserRole } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, useUser, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, serverTimestamp, doc, or } from "firebase/firestore";
+import { collection, query, where, serverTimestamp, doc, or, limit } from "firebase/firestore";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -37,10 +37,12 @@ export const TaskManagement = React.memo(() => {
 
   const tasksRef = useMemoFirebase(() => {
     if (!currentUser || !currentUser.role || !authUser || currentUser.id !== authUser.uid) return null;
-    let q = query(collection(db, "tasks"));
-    if (currentUser.role === 'Employee') return query(q, where("assignedTo", "==", authUser.uid));
-    if (currentUser.role === 'Super Admin' || currentUser.role === 'Admin') return q;
-    return query(q, where("assignedToDepartment", "==", currentUser.department));
+    let q = collection(db, "tasks");
+    
+    if (currentUser.role === 'Employee') return query(q, where("assignedTo", "==", authUser.uid), limit(50));
+    if (currentUser.role === 'Super Admin' || currentUser.role === 'Admin') return query(q, limit(50));
+    
+    return query(q, where("assignedToDepartment", "==", currentUser.department), limit(50));
   }, [db, currentUser, authUser]);
   
   const { data: allTasks, isLoading } = useCollection(tasksRef);
@@ -50,35 +52,44 @@ export const TaskManagement = React.memo(() => {
     if (!currentUser || !currentUser.role || !authUser || currentUser.id !== authUser.uid) return null;
     let q = collection(db, "projects");
     
-    if (currentUser.role === 'Employee') {
-      return query(
-        q, 
-        or(
-          where("assignedUsers", "array-contains", authUser.uid),
-          where("createdBy", "==", authUser.uid)
-        )
-      );
+    if (currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
+      return query(q, limit(50));
     }
     
-    if (currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
-      return query(q);
-    }
+    const filters = [
+      where("assignedUsers", "array-contains", authUser.uid),
+      where("createdBy", "==", authUser.uid)
+    ];
 
-    return query(q, where("department", "==", currentUser.department || "General"));
+    if (currentUser.role === 'Manager' || currentUser.role === 'Team Lead') {
+      filters.push(where("department", "==", currentUser.department));
+    }
+    
+    return query(q, or(...filters), limit(50));
   }, [db, currentUser, authUser]);
   
   const { data: projects } = useCollection(projectsRef);
 
   const usersRef = useMemoFirebase(() => {
-    if (!currentUser || ROLE_POWER[currentUser.role] < 1) return null;
-    return collection(db, "users");
+    // SECURITY: Non-admins MUST filter by department to satisfy rules
+    if (!currentUser || !currentUser.role || ROLE_POWER[currentUser.role] < 1) return null;
+    
+    let q = collection(db, "users");
+    if (currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
+      return query(q, limit(100));
+    }
+    
+    // Managers and Team Leads only see their department
+    return query(q, where("department", "==", currentUser.department), limit(100));
   }, [db, currentUser]);
+  
   const { data: allUsers } = useCollection(usersRef);
 
   const subTasksRef = useMemoFirebase(() => {
     if (!authUser) return null;
-    return collection(db, "sub_tasks");
+    return query(collection(db, "sub_tasks"), limit(100));
   }, [db, authUser]);
+  
   const { data: allSubTasks } = useCollection(subTasksRef);
 
   const subordinates = allUsers?.filter(u => {
@@ -87,8 +98,8 @@ export const TaskManagement = React.memo(() => {
     const targetPower = ROLE_POWER[u.role];
     if (currentUser.role === 'Super Admin') return true;
     if (currentUser.role === 'Admin') return targetPower <= 2; 
-    if (currentUser.role === 'Manager') return targetPower <= 1 && u.department === currentUser.department; 
-    if (currentUser.role === 'Team Lead') return targetPower === 0 && u.department === currentUser.department; 
+    if (currentUser.role === 'Manager') return targetPower <= 1; 
+    if (currentUser.role === 'Team Lead') return targetPower === 0; 
     return false;
   }) || [];
 
