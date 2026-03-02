@@ -16,11 +16,6 @@ service cloud.firestore {
       return exists(path) ? get(path).data : null;
     }
 
-    function getRole() {
-      let data = getUserData();
-      return data != null ? data.role : "None";
-    }
-
     function getRoleWeight(role) {
       return role == "Super Admin" ? 5 :
              role == "Admin" ? 4 :
@@ -30,7 +25,8 @@ service cloud.firestore {
     }
 
     function getWeight() {
-      return getRoleWeight(getRole());
+      let data = getUserData();
+      return data != null ? getRoleWeight(data.role) : 0;
     }
 
     function isMyDept(dept) {
@@ -49,7 +45,6 @@ service cloud.firestore {
         (getWeight() >= 2 && isMyDept(resource.data.department))
       );
       
-      // Allow self-creation (Signup) OR Administrative creation
       allow create: if isSignedIn() && (
         request.auth.uid == userId || 
         getWeight() >= 4 || 

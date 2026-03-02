@@ -27,6 +27,14 @@ interface AuthState {
   logout: () => void;
 }
 
+export const ROLE_WEIGHTS: Record<UserRole, number> = {
+  'Super Admin': 5,
+  'Admin': 4,
+  'Manager': 3,
+  'Team Lead': 2,
+  'Employee': 1
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -34,7 +42,7 @@ export const useAuthStore = create<AuthState>()(
       isLoaded: false,
       setProfile: (profile) => set({ profile, isLoaded: true }),
       setLoaded: (loaded) => set({ isLoaded: loaded }),
-      logout: () => set({ profile: null }),
+      logout: () => set({ profile: null, isLoaded: false }),
     }),
     {
       name: 'roleflow_enterprise_auth',
