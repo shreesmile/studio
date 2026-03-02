@@ -49,7 +49,9 @@ service cloud.firestore {
         (getWeight() >= 2 && isMyDept(resource.data.department))
       );
       
+      // CRITICAL FIX: Allow users to create their own profile during initial signup
       allow create: if isSignedIn() && (
+        request.auth.uid == userId || 
         getWeight() >= 4 || 
         (getWeight() >= 2 && isMyDept(request.resource.data.department) && getWeight() > getRoleWeight(request.resource.data.role))
       );

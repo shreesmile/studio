@@ -9,7 +9,7 @@ import { useAuth, useFirestore } from "@/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, getIdToken } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, LogIn, Sparkles, AlertCircle } from "lucide-react";
+import { Loader2, UserPlus, LogIn, Sparkles, AlertCircle, ShieldCheck } from "lucide-react";
 import { useAuthStore, UserRole as StoreUserRole } from "@/lib/auth-store";
 import { 
   Select, 
@@ -36,11 +36,8 @@ export function LoginForm() {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(false);
-    setAuthError(null);
     setIsLoading(true);
-    
-    console.log(`[AuthAction] Attempting ${isSignUp ? 'Sign Up' : 'Login'} for ${email}`);
+    setAuthError(null);
     
     try {
       let user;
@@ -60,6 +57,7 @@ export function LoginForm() {
           updatedAt: new Date().toISOString()
         };
 
+        // Write to Firestore - Rules now allow this self-creation
         await setDoc(doc(db, "users", user.uid), profileData);
         setProfile(profileData as any);
 
@@ -84,11 +82,11 @@ export function LoginForm() {
       
       let errorMessage = error.message;
       if (error.code === 'auth/email-already-in-use') {
-        errorMessage = "This identity is already registered in our system. Please try signing in instead.";
+        errorMessage = "This identity is already registered. Please try signing in.";
       } else if (error.code === 'auth/invalid-credential') {
-        errorMessage = "Invalid clearance credentials. Please verify your email and passkey.";
-      } else if (error.code === 'auth/weak-password') {
-        errorMessage = "The provided passkey does not meet organizational security standards.";
+        errorMessage = "Invalid credentials. Please verify your email and password.";
+      } else if (error.code === 'permission-denied') {
+        errorMessage = "Identity initialization failed due to security constraints.";
       }
       
       setAuthError(errorMessage);
@@ -110,14 +108,14 @@ export function LoginForm() {
   };
 
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleAuth} className="space-y-4 text-left">
-        <div className="space-y-2 text-center mb-6">
-          <h2 className="text-xl font-bold text-foreground">
-            {isSignUp ? "Create Account" : "Sign In"}
+    <div className="w-full">
+      <form onSubmit={handleAuth} className="space-y-4">
+        <div className="text-center space-y-2 mb-8">
+          <h2 className="text-2xl font-bold text-foreground">
+            {isSignUp ? "Create Account" : "Welcome Back"}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {isSignUp ? "Join the professional RBAC platform" : "Enter your credentials to access RoleFlow"}
+            {isSignUp ? "Join the professional RBAC platform" : "Sign in to access your command center"}
           </p>
         </div>
 
@@ -131,19 +129,20 @@ export function LoginForm() {
         
         {isSignUp && (
           <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
-            <Label htmlFor="name">Full Name</Label>
+            <Label htmlFor="name" className="text-[10px] font-bold uppercase tracking-widest opacity-60">Full Name</Label>
             <Input 
               id="name" 
               placeholder="John Doe" 
               required 
               value={name}
               onChange={(e) => setName(e.target.value)}
+              className="h-11 bg-muted/30 border-none rounded-xl"
             />
           </div>
         )}
 
         <div className="space-y-1">
-          <Label htmlFor="email">Email Address</Label>
+          <Label htmlFor="email" className="text-[10px] font-bold uppercase tracking-widest opacity-60">Email Address</Label>
           <Input 
             id="email" 
             type="email" 
@@ -151,25 +150,27 @@ export function LoginForm() {
             required 
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            className="h-11 bg-muted/30 border-none rounded-xl"
           />
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password" className="text-[10px] font-bold uppercase tracking-widest opacity-60">Password</Label>
           <Input 
             id="password" 
             type="password" 
             required 
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            className="h-11 bg-muted/30 border-none rounded-xl"
           />
         </div>
 
         {isSignUp && (
           <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
-            <Label htmlFor="role">Initial Role</Label>
+            <Label htmlFor="role" className="text-[10px] font-bold uppercase tracking-widest opacity-60">Initial Role</Label>
             <Select value={role} onValueChange={setRole}>
-              <SelectTrigger>
+              <SelectTrigger className="h-11 bg-muted/30 border-none rounded-xl">
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
               <SelectContent>
@@ -183,11 +184,11 @@ export function LoginForm() {
           </div>
         )}
 
-        <Button type="submit" className="w-full h-12 mt-4" disabled={isLoading}>
+        <Button type="submit" className="w-full h-12 mt-4 bg-primary hover:bg-primary/90 rounded-xl" disabled={isLoading}>
           {isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Verifying...
+              Processing...
             </>
           ) : (
             <>
@@ -198,22 +199,22 @@ export function LoginForm() {
         </Button>
       </form>
 
-      <div className="space-y-4 pt-2">
-        <Button 
-          variant="ghost" 
-          className="w-full text-xs" 
+      <div className="space-y-4 pt-6 text-center">
+        <button 
+          type="button"
+          className="text-xs text-muted-foreground hover:text-primary transition-colors font-medium" 
           onClick={() => {
             setIsSignUp(!isSignUp);
             setAuthError(null);
           }}
         >
           {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Create one"}
-        </Button>
+        </button>
 
         {!isSignUp && (
           <Button 
             variant="outline" 
-            className="w-full h-10 border-accent/20 text-accent hover:bg-accent/5" 
+            className="w-full h-11 border-accent/20 text-accent hover:bg-accent/5 rounded-xl text-xs font-bold" 
             onClick={handleDemoLogin}
           >
             <Sparkles className="mr-2 h-4 w-4" />
