@@ -38,25 +38,25 @@ export function ProjectManagement() {
   });
 
   const projectsQuery = useMemoFirebase(() => {
-    // CRITICAL: Ensure full profile sync before initiating list query
+    // CRITICAL: Ensure profile is fully synchronized before initiating query to match security rules
     if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) {
-      console.log("[ProjectManagement] Waiting for organizational sync...");
+      console.log("[ProjectManagement] Waiting for clearance synchronization...");
       return null;
     }
     
-    console.log(`[ProjectManagement] Discovering projects for ${user.role}`);
     let q = query(collection(db, "projects"));
     
     if (user.role === 'Super Admin' || user.role === 'Admin') {
-      return query(q, orderBy("createdAt", "desc"), limit(50));
+      return query(q, limit(50));
     }
     
+    // Employees strictly filter by assignment to satisfy rules
     if (user.role === 'Employee') {
-      return query(q, where("assignedTo", "array-contains", authUser.uid));
+      return query(q, where("assignedTo", "array-contains", authUser.uid), limit(50));
     }
     
-    // For Managers and Team Leads - filter by department
-    return query(q, where("department", "==", user.department));
+    // Managers and Team Leads filter by department
+    return query(q, where("department", "==", user.department), limit(50));
   }, [db, user, authUser]);
 
   const { data: projects, isLoading } = useCollection(projectsQuery);
@@ -67,7 +67,7 @@ export function ProjectManagement() {
 
     const projectData = {
       ...newProject,
-      department: user.department || "Default",
+      department: user.department || "General",
       createdBy: authUser.uid,
       assignedTo: [],
       createdAt: serverTimestamp(),
@@ -77,7 +77,7 @@ export function ProjectManagement() {
     addDocumentNonBlocking(collection(db, "projects"), projectData);
     setIsModalOpen(false);
     setNewProject({ name: '', description: '', startDate: '', endDate: '', priority: 'Medium', status: 'Not Started' });
-    toast({ title: "Project Created", description: "The project has been added to the portfolio." });
+    toast({ title: "Project Created", description: "Strategic workspace deliverables initialized." });
   };
 
   const getPriorityColor = (priority: string) => {
@@ -94,12 +94,12 @@ export function ProjectManagement() {
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h2 className="text-xl font-black text-primary uppercase tracking-tighter">Project Portfolio</h2>
-          <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Strategic Corporate Assets</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Strategic Portfolio Assets</p>
         </div>
         {['Super Admin', 'Admin', 'Manager'].includes(user?.role || '') && (
           <Button onClick={() => setIsModalOpen(true)} className="bg-primary shadow-lg hover:shadow-primary/20">
             <Plus className="mr-2 h-4 w-4" />
-            Initialize Project
+            New Project
           </Button>
         )}
       </div>
@@ -108,7 +108,7 @@ export function ProjectManagement() {
         {isLoading ? (
           <div className="col-span-full py-20 flex flex-col items-center gap-4">
             <Loader2 className="animate-spin text-primary/20 w-10 h-10" />
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Accessing Portfolio...</p>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Accessing clearance layer...</p>
           </div>
         ) : projects?.map((project) => (
           <Card key={project.id} className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden bg-white">
@@ -129,7 +129,7 @@ export function ProjectManagement() {
               <div className="grid grid-cols-2 gap-4 pt-4 border-t">
                 <div className="space-y-1">
                   <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
-                    <Calendar className="w-2.5 h-2.5" /> Start Date
+                    <Calendar className="w-2.5 h-2.5" /> Start
                   </p>
                   <p className="text-xs font-bold">{project.startDate || 'TBD'}</p>
                 </div>
@@ -153,7 +153,7 @@ export function ProjectManagement() {
         {(!projects || projects.length === 0) && !isLoading && (
           <div className="col-span-full py-20 text-center border-2 border-dashed rounded-[2rem] bg-white/50">
             <Briefcase className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">No strategic projects discovered in this security level.</p>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">No strategic assets available in current clearance level.</p>
           </div>
         )}
       </div>
@@ -162,16 +162,18 @@ export function ProjectManagement() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-tighter text-xl">Initialize Strategic Project</DialogTitle>
-            <DialogDescription className="text-xs uppercase tracking-widest font-bold opacity-70">Define new organizational workspace deliverables.</DialogDescription>
+            <DialogDescription className="text-xs uppercase tracking-widest font-bold opacity-70">
+              Define a new organizational deliverable and workspace.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4 pt-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-widest">Project Name</Label>
+              <Label className="text-[10px] font-bold uppercase tracking-widest">Project Identity</Label>
               <Input required value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="e.g., Enterprise Portal Migration" />
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-bold uppercase tracking-widest">Operational Summary</Label>
-              <Textarea required value={newProject.description} onChange={e => setNewProject({...newProject, description: e.target.value})} placeholder="Project scope and deliverables..." />
+              <Textarea required value={newProject.description} onChange={e => setNewProject({...newProject, description: e.target.value})} placeholder="Define workspace scope..." />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -179,13 +181,13 @@ export function ProjectManagement() {
                 <Input type="date" value={newProject.startDate} onChange={e => setNewProject({...newProject, startDate: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest">End Date</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-widest">Target Deadline</Label>
                 <Input type="date" value={newProject.endDate} onChange={e => setNewProject({...newProject, endDate: e.target.value})} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest">Priority</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-widest">Priority Layer</Label>
                 <Select value={newProject.priority} onValueChange={v => setNewProject({...newProject, priority: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -209,7 +211,7 @@ export function ProjectManagement() {
               </div>
             </div>
             <DialogFooter className="pt-4">
-              <Button type="submit" className="w-full h-11 bg-primary font-bold uppercase tracking-widest text-xs">Deploy Project Workspace</Button>
+              <Button type="submit" className="w-full h-11 bg-primary font-bold uppercase tracking-widest text-xs">Deploy Workspace</Button>
             </DialogFooter>
           </form>
         </DialogContent>
