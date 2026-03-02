@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from "react";
@@ -67,21 +66,23 @@ export const OverviewTab = React.memo(() => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      {/* LCP Optimization: Hero image with priority */}
       <div className="relative w-full h-32 rounded-3xl overflow-hidden shadow-sm mb-8 bg-muted">
         {heroImage && (
           <Image 
             src={heroImage.imageUrl}
-            alt="Dashboard hero"
+            alt="Dashboard Hero"
             fill
             className="object-cover opacity-80"
             priority
+            sizes="100vw"
             data-ai-hint={heroImage.imageHint}
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-transparent flex items-center px-8">
           <div>
             <h2 className="text-white text-2xl font-black uppercase tracking-tighter">Welcome, {user?.name.split(' ')[0]}</h2>
-            <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">Operational Command: {user?.role}</p>
+            <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">Clearance: {user?.role}</p>
           </div>
         </div>
       </div>
@@ -97,7 +98,7 @@ export const OverviewTab = React.memo(() => {
           <CardContent>
             <div className="flex items-center gap-1 text-[9px] font-bold text-green-600 uppercase">
               <TrendingUp className="w-3 h-3" />
-              Organizational Growth
+              Strategic Growth
             </div>
           </CardContent>
         </Card>
@@ -138,7 +139,7 @@ export const OverviewTab = React.memo(() => {
           <CardHeader className="border-b bg-muted/10">
             <CardTitle className="text-sm font-bold flex items-center gap-2 uppercase tracking-widest">
               <BarChart3 className="w-4 h-4 text-primary" />
-              Strategic Project Insight
+              Strategic Insight
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -159,11 +160,6 @@ export const OverviewTab = React.memo(() => {
                   </Badge>
                 </div>
               ))}
-              {(!projects || projects.length === 0) && !loadingProjects && (
-                <div className="p-10 text-center text-muted-foreground text-[10px] uppercase font-bold tracking-widest opacity-40">
-                  No operational assets found in current clearance.
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -173,7 +169,7 @@ export const OverviewTab = React.memo(() => {
             <CardHeader>
               <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
                 <BrainCircuit className="w-4 h-4 text-accent" />
-                AI Command Insight
+                AI Strategy
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -184,22 +180,6 @@ export const OverviewTab = React.memo(() => {
                 Synchronize Strategy
                 <Sparkles className="ml-2 w-3 h-3" />
               </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="border-primary/10 bg-white">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-[10px] font-black uppercase tracking-widest">Clearance Status</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                <span className="text-[10px] font-bold uppercase">Identity Verified</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                <span className="text-[10px] font-bold uppercase">Permission Handshake: OK</span>
-              </div>
             </CardContent>
           </Card>
         </div>

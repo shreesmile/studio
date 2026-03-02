@@ -13,21 +13,48 @@ import { LoginForm } from "@/components/auth/LoginForm";
 import { Button } from "@/components/ui/button";
 import { signOut } from "firebase/auth";
 
-// Lazy load dashboard tabs for performance
-const OverviewTab = dynamic(() => import("@/components/dashboard/OverviewTab").then(mod => mod.OverviewTab), { loading: () => <TabLoader /> });
-const ProjectManagement = dynamic(() => import("@/components/dashboard/ProjectManagement").then(mod => mod.ProjectManagement), { loading: () => <TabLoader /> });
-const TaskManagement = dynamic(() => import("@/components/dashboard/TaskManagement").then(mod => mod.TaskManagement), { loading: () => <TabLoader /> });
-const WorkLogTerminal = dynamic(() => import("@/components/dashboard/WorkLogTerminal").then(mod => mod.WorkLogTerminal), { loading: () => <TabLoader /> });
-const UserManagement = dynamic(() => import("@/components/dashboard/UserManagement").then(mod => mod.UserManagement), { loading: () => <TabLoader /> });
-const ReportsTab = dynamic(() => import("@/components/dashboard/ReportsTab").then(mod => mod.ReportsTab), { loading: () => <TabLoader /> });
-const AttendanceTab = dynamic(() => import("@/components/dashboard/AttendanceTab").then(mod => mod.AttendanceTab), { loading: () => <TabLoader /> });
-const LeaveManagement = dynamic(() => import("@/components/dashboard/LeaveManagement").then(mod => mod.LeaveManagement), { loading: () => <TabLoader /> });
+// Performance: Lazy load dashboard tabs with skeleton loaders
+const OverviewTab = dynamic(() => import("@/components/dashboard/OverviewTab").then(mod => mod.OverviewTab), { 
+  loading: () => <TabSkeleton />,
+  ssr: false 
+});
+const ProjectManagement = dynamic(() => import("@/components/dashboard/ProjectManagement").then(mod => mod.ProjectManagement), { 
+  loading: () => <TabSkeleton />,
+  ssr: false 
+});
+const TaskManagement = dynamic(() => import("@/components/dashboard/TaskManagement").then(mod => mod.TaskManagement), { 
+  loading: () => <TabSkeleton />,
+  ssr: false 
+});
+const WorkLogTerminal = dynamic(() => import("@/components/dashboard/WorkLogTerminal").then(mod => mod.WorkLogTerminal), { 
+  loading: () => <TabSkeleton />,
+  ssr: false 
+});
+const UserManagement = dynamic(() => import("@/components/dashboard/UserManagement").then(mod => mod.UserManagement), { 
+  loading: () => <TabSkeleton />,
+  ssr: false 
+});
+const ReportsTab = dynamic(() => import("@/components/dashboard/ReportsTab").then(mod => mod.ReportsTab), { 
+  loading: () => <TabSkeleton />,
+  ssr: false 
+});
+const AttendanceTab = dynamic(() => import("@/components/dashboard/AttendanceTab").then(mod => mod.AttendanceTab), { 
+  loading: () => <TabSkeleton />,
+  ssr: false 
+});
+const LeaveManagement = dynamic(() => import("@/components/dashboard/LeaveManagement").then(mod => mod.LeaveManagement), { 
+  loading: () => <TabSkeleton />,
+  ssr: false 
+});
 
-function TabLoader() {
+function TabSkeleton() {
   return (
-    <div className="flex flex-col items-center justify-center py-20 gap-3 opacity-50">
-      <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      <p className="text-[10px] font-bold uppercase tracking-widest">Loading Module...</p>
+    <div className="space-y-6 animate-pulse">
+      <div className="h-32 w-full bg-muted rounded-3xl skeleton" />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-muted rounded-xl skeleton" />)}
+      </div>
+      <div className="h-64 w-full bg-muted rounded-2xl skeleton" />
     </div>
   );
 }
@@ -46,7 +73,6 @@ function DashboardContent() {
     if (isUserLoading) return;
 
     if (!authUser) {
-      console.log("[Auth] No authenticated user found.");
       clearProfile();
       syncRef.current = null;
       setIsInitializing(false);
@@ -55,23 +81,18 @@ function DashboardContent() {
     }
 
     if (authUser && syncRef.current !== authUser.uid) {
-      console.log(`[ProfileSync] Initializing for UID: ${authUser.uid}`);
       syncRef.current = authUser.uid;
       setIsInitializing(true);
       
       const unsub = onSnapshot(doc(db, "users", authUser.uid), (docSnap) => {
         if (docSnap.exists()) {
-          const data = docSnap.data();
-          console.log(`[ProfileSync] Profile verified: ${data.name} (${data.role})`);
-          setProfile(data as any);
+          setProfile(docSnap.data() as any);
           setProfileMissing(false);
         } else {
-          console.warn(`[ProfileSync] Profile document missing for UID: ${authUser.uid}`);
           setProfileMissing(true);
         }
         setIsInitializing(false);
       }, (err) => {
-        console.error("[ProfileSync] Sync failure:", err);
         setProfileMissing(true);
         setIsInitializing(false);
       });
@@ -82,12 +103,10 @@ function DashboardContent() {
   }, [authUser, isUserLoading, db, setProfile, clearProfile, profile]);
 
   const handleTabChange = useCallback((id: string) => {
-    console.log(`[Navigation] Active Tab: ${id}`);
     setActiveTab(id);
   }, []);
 
   const handleLogout = async () => {
-    console.log("[Auth] Session termination initiated.");
     await signOut(auth);
     clearProfile();
     window.location.reload();
@@ -97,7 +116,7 @@ function DashboardContent() {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Synchronizing Security Terminal...</p>
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Syncing Secure Environment...</p>
       </div>
     );
   }
@@ -112,7 +131,7 @@ function DashboardContent() {
           <div className="space-y-2">
             <h1 className="text-2xl font-black uppercase tracking-tighter text-foreground">Access Restricted</h1>
             <p className="text-xs text-muted-foreground leading-relaxed px-4">
-              Authenticated user session found, but organizational identity (Role/Dept) is not yet initialized in the directory.
+              Authenticated user found, but organizational identity (Role/Dept) is not yet initialized.
             </p>
           </div>
           <Button onClick={handleLogout} variant="outline" className="w-full h-12 uppercase tracking-widest font-black text-[10px]">
@@ -132,7 +151,7 @@ function DashboardContent() {
               <ShieldCheck className="text-white w-10 h-10" />
             </div>
             <h1 className="text-4xl font-black text-primary tracking-tighter uppercase italic text-center">RoleFlow</h1>
-            <p className="mt-2 text-muted-foreground font-bold uppercase tracking-widest text-[10px]">Strategic RBAC Platform</p>
+            <p className="mt-2 text-muted-foreground font-bold uppercase tracking-widest text-[10px]">Professional RBAC Platform</p>
           </div>
           <div className="bg-white p-8 rounded-[2rem] shadow-2xl border border-white space-y-6">
             <LoginForm />

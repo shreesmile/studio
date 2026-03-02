@@ -1,22 +1,21 @@
-
 {
   "placeholderImages": [
     {
       "id": "hero-dashboard",
       "description": "Professional abstract network background",
-      "imageUrl": "https://picsum.photos/seed/rf-hero/1200/400",
+      "imageUrl": "https://picsum.photos/seed/rf-hero-99/1200/400",
       "imageHint": "abstract network"
     },
     {
       "id": "avatar-placeholder",
       "description": "Default professional avatar",
-      "imageUrl": "https://picsum.photos/seed/rf-avatar/150/150",
+      "imageUrl": "https://picsum.photos/seed/rf-avatar-99/150/150",
       "imageHint": "professional portrait"
     },
     {
       "id": "project-thumb",
       "description": "Strategic project thumbnail",
-      "imageUrl": "https://picsum.photos/seed/rf-project/400/250",
+      "imageUrl": "https://picsum.photos/seed/rf-project-99/400/250",
       "imageHint": "office strategy"
     }
   ]
