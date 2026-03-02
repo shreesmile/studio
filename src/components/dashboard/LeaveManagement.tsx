@@ -27,6 +27,7 @@ export function LeaveManagement() {
     
     let q = query(collection(db, "leave_requests"));
     
+    // CRITICAL: Employee MUST filter by their own UID to avoid permission error
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role)) {

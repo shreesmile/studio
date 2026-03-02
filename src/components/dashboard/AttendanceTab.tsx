@@ -29,7 +29,7 @@ export function AttendanceTab() {
     
     let q = query(collection(db, "attendance"));
     
-    // Strict Guard: Force own-data filter if user is Employee or role is not yet confirmed
+    // CRITICAL: Employee MUST filter by their own UID to avoid permission error
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role)) {

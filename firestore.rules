@@ -8,7 +8,7 @@ service cloud.firestore {
 
     function getUserData(uid) {
       let path = /databases/$(database)/documents/users/$(uid);
-      return exists(path) ? get(path).data : {"role": "Guest", "department": "None"};
+      return exists(path) ? get(path).data : {"role": "Employee", "department": "General"};
     }
 
     function getLevel(role) {
