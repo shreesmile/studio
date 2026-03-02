@@ -25,7 +25,8 @@ export function OverviewTab() {
 
   const projectsQuery = useMemoFirebase(() => {
     // CRITICAL: Ensure profile is fully synchronized and matches authUser to satisfy security rules
-    if (!authUser || !user || !user.role || user.id !== authUser.uid) return null;
+    // If we don't have role/department yet, return null to avoid unauthorized Broad Queries
+    if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) return null;
     
     let q = query(collection(db, "projects"));
     
@@ -40,20 +41,20 @@ export function OverviewTab() {
     }
     
     // Managers and Team Leads see departmental projects. 
-    const dept = user.department || "General";
+    const dept = user.department;
     return query(q, where("department", "==", dept), orderBy("createdAt", "desc"), limit(10));
   }, [db, user, authUser]);
 
   const { data: projects, isLoading: loadingProjects } = useCollection(projectsQuery);
 
   const logsQuery = useMemoFirebase(() => {
-    if (!authUser || !user || !user.role || user.id !== authUser.uid) return null;
+    if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) return null;
     let q = query(collection(db, "work_logs"));
     
     if (user.role === 'Employee') return query(q, where("userId", "==", authUser.uid), limit(20));
     if (user.role === 'Super Admin' || user.role === 'Admin') return query(q, limit(20));
     
-    return query(q, where("department", "==", user.department || "General"), limit(20));
+    return query(q, where("department", "==", user.department), limit(20));
   }, [db, user, authUser]);
 
   const { data: logs, isLoading: loadingLogs } = useCollection(logsQuery);

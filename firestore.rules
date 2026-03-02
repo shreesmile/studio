@@ -12,11 +12,13 @@ service cloud.firestore {
     }
 
     function getUserData() {
+      // Safely get user profile
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     function getRole() {
-      return getUserData().role;
+      let data = getUserData();
+      return data != null ? data.role : "None";
     }
 
     function getWeight() {
@@ -29,7 +31,8 @@ service cloud.firestore {
     }
 
     function isMyDept(dept) {
-      return getUserData().department == dept;
+      let data = getUserData();
+      return data != null && data.department == dept;
     }
 
     // -------------------------

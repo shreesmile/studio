@@ -28,7 +28,7 @@ export function AttendanceTab() {
 
   const attendanceQuery = useMemoFirebase(() => {
     // Safety guard: Must have fully synced user profile to match security rules
-    if (!authUser || !user || user.id !== authUser.uid || !user.role) return null;
+    if (!authUser || !user || user.id !== authUser.uid || !user.role || !user.department) return null;
     
     let q = query(collection(db, "attendance"));
     
@@ -36,7 +36,7 @@ export function AttendanceTab() {
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role)) {
-      q = query(q, where("department", "==", user.department || "General"));
+      q = query(q, where("department", "==", user.department));
     }
     
     return query(q, orderBy("clockIn", "desc"), limit(50));
@@ -49,7 +49,7 @@ export function AttendanceTab() {
   [records, today, user?.id, authUser?.uid]);
 
   const handleClockIn = () => {
-    if (!authUser) return;
+    if (!authUser || !user) return;
     if (!project.trim()) {
       toast({
         variant: "destructive",
@@ -64,8 +64,8 @@ export function AttendanceTab() {
     
     const record = {
       userId: authUser.uid,
-      userName: user?.name || authUser.email || "Employee",
-      department: user?.department || "General",
+      userName: user.name,
+      department: user.department,
       date: today,
       clockIn: now.toISOString(),
       status: isLate ? "Late" : "Present",
