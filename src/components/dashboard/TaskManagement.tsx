@@ -71,7 +71,6 @@ export const TaskManagement = React.memo(() => {
   const { data: projects } = useCollection(projectsRef);
 
   const usersRef = useMemoFirebase(() => {
-    // SECURITY: Non-admins MUST filter by department to satisfy rules
     if (!currentUser || !currentUser.role || ROLE_POWER[currentUser.role] < 1) return null;
     
     let q = collection(db, "users");
@@ -79,15 +78,12 @@ export const TaskManagement = React.memo(() => {
       return query(q, limit(100));
     }
     
-    // Managers and Team Leads only see their department
     return query(q, where("department", "==", currentUser.department), limit(100));
   }, [db, currentUser]);
   
   const { data: allUsers } = useCollection(usersRef);
 
   const subTasksRef = useMemoFirebase(() => {
-    // SECURITY: Sub-tasks listing is allowed for all signed-in users, 
-    // but we add a guard to ensure authUser is present.
     if (!authUser) return null;
     return query(collection(db, "sub_tasks"), limit(100));
   }, [db, authUser]);
@@ -206,9 +202,11 @@ export const TaskManagement = React.memo(() => {
                     <Button variant="ghost" size="icon" className="h-8 w-8"><Settings2 className="h-4 w-4" /></Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => { setSelectedTaskForSub(task.id); setIsSubTaskModalOpen(true); }}>
-                      <Plus className="mr-2 h-4 w-4" /> Add Sub-task
-                    </DropdownMenuItem>
+                    {['Super Admin', 'Admin', 'Manager', 'Team Lead'].includes(currentUser?.role || '') && (
+                      <DropdownMenuItem onClick={() => { setSelectedTaskForSub(task.id); setIsSubTaskModalOpen(true); }}>
+                        <Plus className="mr-2 h-4 w-4" /> Add Sub-task
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'in-progress' })}>Set In-Progress</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => updateDocumentNonBlocking(doc(db, "tasks", task.id), { status: 'completed' })}>Set Completed</DropdownMenuItem>
                   </DropdownMenuContent>
