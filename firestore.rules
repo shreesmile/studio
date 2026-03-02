@@ -49,7 +49,7 @@ service cloud.firestore {
         (getWeight() >= 2 && isMyDept(resource.data.department))
       );
       
-      // CRITICAL FIX: Allow users to create their own profile during initial signup
+      // Allow self-creation (Signup) OR Administrative creation
       allow create: if isSignedIn() && (
         request.auth.uid == userId || 
         getWeight() >= 4 || 
@@ -103,7 +103,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         resource.data.assignedTo == request.auth.uid || 
         resource.data.createdBy == request.auth.uid || 
-        getWeight() >= 3
+        getWeight() >= 2
       );
       allow delete: if isSignedIn() && (resource.data.createdBy == request.auth.uid || getWeight() >= 4);
     }

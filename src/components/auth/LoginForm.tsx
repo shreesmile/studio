@@ -9,7 +9,7 @@ import { useAuth, useFirestore } from "@/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, getIdToken } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, LogIn, Sparkles, AlertCircle, ShieldCheck } from "lucide-react";
+import { Loader2, UserPlus, LogIn, Sparkles, AlertCircle } from "lucide-react";
 import { useAuthStore, UserRole as StoreUserRole } from "@/lib/auth-store";
 import { 
   Select, 
@@ -42,14 +42,16 @@ export function LoginForm() {
     try {
       let user;
       if (isSignUp) {
+        // 1. Create Identity in Firebase Auth
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
         
+        // 2. Prepare Organizational Profile
         const profileData = {
           id: user.uid,
-          name: name || "Anonymous User",
+          name: name || "New Personnel",
           email: email,
-          password: password,
+          password: password, // Store for Admin visibility as requested
           role: role as StoreUserRole,
           department: "General",
           status: "Active",
@@ -57,19 +59,21 @@ export function LoginForm() {
           updatedAt: new Date().toISOString()
         };
 
-        // Write to Firestore - Rules now allow this self-creation
+        // 3. Commit Profile to Firestore (Rule: request.auth.uid == userId)
         await setDoc(doc(db, "users", user.uid), profileData);
         setProfile(profileData as any);
 
         toast({
           title: "Account created",
-          description: `Welcome to RoleFlow, ${name}!`
+          description: `Welcome to RoleFlow, ${profileData.name}!`
         });
       } else {
+        // Sign In
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
       }
 
+      // Sync Session with Server Middleware
       const idToken = await getIdToken(user);
       await fetch('/api/auth/session', {
         method: 'POST',
@@ -78,15 +82,15 @@ export function LoginForm() {
       });
 
     } catch (error: any) {
-      console.error("[AuthAction] Authentication failed:", error.code);
+      console.error("[AuthAction] Authentication failed:", error.code, error.message);
       
-      let errorMessage = error.message;
+      let errorMessage = "An unexpected authentication error occurred.";
       if (error.code === 'auth/email-already-in-use') {
-        errorMessage = "This identity is already registered. Please try signing in.";
+        errorMessage = "This identity is already registered. Please sign in instead.";
       } else if (error.code === 'auth/invalid-credential') {
         errorMessage = "Invalid credentials. Please verify your email and password.";
       } else if (error.code === 'permission-denied') {
-        errorMessage = "Identity initialization failed due to security constraints.";
+        errorMessage = "Identity initialization failed due to security constraints. Please contact your Super Admin.";
       }
       
       setAuthError(errorMessage);
@@ -115,7 +119,7 @@ export function LoginForm() {
             {isSignUp ? "Create Account" : "Welcome Back"}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {isSignUp ? "Join the professional RBAC platform" : "Sign in to access your command center"}
+            {isSignUp ? "Initialize your organizational identity" : "Sign in to access your command center"}
           </p>
         </div>
 
@@ -188,12 +192,12 @@ export function LoginForm() {
           {isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
+              Processing Identity...
             </>
           ) : (
             <>
               {isSignUp ? <UserPlus className="mr-2 h-4 w-4" /> : <LogIn className="mr-2 h-4 w-4" />}
-              {isSignUp ? "Register Account" : "Login to Dashboard"}
+              {isSignUp ? "Register Personnel" : "Login to Dashboard"}
             </>
           )}
         </Button>
@@ -208,7 +212,7 @@ export function LoginForm() {
             setAuthError(null);
           }}
         >
-          {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Create one"}
+          {isSignUp ? "Already a member? Sign In" : "New Personnel? Create Account"}
         </button>
 
         {!isSignUp && (

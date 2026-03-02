@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Plus, Calendar, Filter, User, Loader2, Settings2, ClipboardList, Layers } from "lucide-react";
@@ -18,11 +18,11 @@ import { useToast } from "@/hooks/use-toast";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const ROLE_POWER: Record<UserRole, number> = {
-  'Super Admin': 4,
-  'Admin': 3,
-  'Manager': 2,
-  'Team Lead': 1,
-  'Employee': 0
+  'Super Admin': 5,
+  'Admin': 4,
+  'Manager': 3,
+  'Team Lead': 2,
+  'Employee': 1
 };
 
 export const TaskManagement = React.memo(() => {
@@ -34,6 +34,8 @@ export const TaskManagement = React.memo(() => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSubTaskModalOpen, setIsSubTaskModalOpen] = useState(false);
   const [selectedTaskForSub, setSelectedTaskForSub] = useState<string | null>(null);
+
+  const currentPower = currentUser ? ROLE_POWER[currentUser.role] : 0;
 
   const tasksRef = useMemoFirebase(() => {
     if (!currentUser || !currentUser.role || !authUser || currentUser.id !== authUser.uid) return null;
@@ -71,7 +73,7 @@ export const TaskManagement = React.memo(() => {
   const { data: projects } = useCollection(projectsRef);
 
   const usersRef = useMemoFirebase(() => {
-    if (!currentUser || !currentUser.role || ROLE_POWER[currentUser.role] < 1) return null;
+    if (!currentUser || !currentUser.role || currentPower < 2) return null;
     
     let q = collection(db, "users");
     if (currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
@@ -79,7 +81,7 @@ export const TaskManagement = React.memo(() => {
     }
     
     return query(q, where("department", "==", currentUser.department), limit(100));
-  }, [db, currentUser]);
+  }, [db, currentUser, currentPower]);
   
   const { data: allUsers } = useCollection(usersRef);
 
@@ -92,13 +94,8 @@ export const TaskManagement = React.memo(() => {
 
   const subordinates = allUsers?.filter(u => {
     if (!currentUser || u.id === currentUser.id) return false;
-    const myPower = ROLE_POWER[currentUser.role];
-    const targetPower = ROLE_POWER[u.role];
-    if (currentUser.role === 'Super Admin') return true;
-    if (currentUser.role === 'Admin') return targetPower <= 2; 
-    if (currentUser.role === 'Manager') return targetPower <= 1; 
-    if (currentUser.role === 'Team Lead') return targetPower === 0; 
-    return false;
+    const targetPower = ROLE_POWER[u.role] || 0;
+    return currentPower > targetPower;
   }) || [];
 
   const [newTask, setNewTask] = useState({ projectId: '', title: '', description: '', assignedTo: '', dueDate: '', estimatedHours: 0 });
@@ -167,7 +164,7 @@ export const TaskManagement = React.memo(() => {
             <SelectItem value="blocked">Blocked</SelectItem>
           </SelectContent>
         </Select>
-        {['Super Admin', 'Admin', 'Manager'].includes(currentUser?.role || '') && (
+        {currentPower >= 3 && (
           <Button onClick={() => setIsCreateModalOpen(true)} className="bg-primary">
             <Plus className="mr-2 h-4 w-4" />
             Initialize Main Task
@@ -202,7 +199,7 @@ export const TaskManagement = React.memo(() => {
                     <Button variant="ghost" size="icon" className="h-8 w-8"><Settings2 className="h-4 w-4" /></Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    {['Super Admin', 'Admin', 'Manager', 'Team Lead'].includes(currentUser?.role || '') && (
+                    {currentPower >= 2 && (
                       <DropdownMenuItem onClick={() => { setSelectedTaskForSub(task.id); setIsSubTaskModalOpen(true); }}>
                         <Plus className="mr-2 h-4 w-4" /> Add Sub-task
                       </DropdownMenuItem>
