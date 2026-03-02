@@ -12,10 +12,6 @@ service cloud.firestore {
       return exists(path) ? get(path).data : {"role": "Employee", "department": "General"};
     }
 
-    function isRole(role) {
-      return getUserData(request.auth.uid).role == role;
-    }
-
     function getLevel(role) {
       return role == 'Super Admin' ? 5 :
              role == 'Admin' ? 4 :
@@ -28,7 +24,8 @@ service cloud.firestore {
     }
 
     function isMyDept(dept) {
-      return getUserData(request.auth.uid).department == dept;
+      let myDept = getUserData(request.auth.uid).department;
+      return myDept == dept || (myDept == 'Default' && dept == 'General') || (myDept == 'General' && dept == 'Default');
     }
 
     match /users/{userId} {
@@ -90,7 +87,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
         getMyWeight() >= 4 ||
-        (getMyWeight() >= 3 && isMyDept(resource.data.department))
+        (getMyWeight() >= 2 && isMyDept(resource.data.department))
       );
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
@@ -100,7 +97,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
         getMyWeight() >= 4 ||
-        (getMyWeight() >= 3 && isMyDept(resource.data.department))
+        (getMyWeight() >= 2 && isMyDept(resource.data.department))
       );
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || getMyWeight() >= 3);

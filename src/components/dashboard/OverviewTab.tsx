@@ -30,18 +30,21 @@ export function OverviewTab() {
     
     let q = query(collection(db, "projects"));
     
+    // Admins and Super Admins have global visibility
     if (user.role === 'Super Admin' || user.role === 'Admin') {
       return query(q, orderBy("createdAt", "desc"), limit(10));
     }
     
-    // Employees can only list projects they are assigned to. 
-    // This MUST match the security rule to prevent "Missing or insufficient permissions".
+    // Employees are STRICTLY restricted to projects where they are assigned.
+    // This query must match the 'allow read' rule exactly to prevent permission errors.
     if (user.role === 'Employee') {
-      return query(q, where("assignedTo", "array-contains", authUser.uid));
+      return query(q, where("assignedTo", "array-contains", authUser.uid), limit(10));
     }
     
-    // Managers and Team Leads see departmental projects
-    return query(q, where("department", "==", user.department || "General"));
+    // Managers and Team Leads see departmental projects. 
+    // Fallback to "General" to match security rules department fallback.
+    const dept = user.department || "General";
+    return query(q, where("department", "==", dept), orderBy("createdAt", "desc"), limit(10));
   }, [db, user, authUser]);
 
   const { data: projects, isLoading: loadingProjects } = useCollection(projectsQuery);
@@ -50,8 +53,8 @@ export function OverviewTab() {
     if (!authUser || !user || !user.role || user.id !== authUser.uid) return null;
     let q = query(collection(db, "work_logs"));
     
-    if (user.role === 'Employee') return query(q, where("userId", "==", authUser.uid));
-    if (user.role === 'Super Admin') return query(q, limit(20));
+    if (user.role === 'Employee') return query(q, where("userId", "==", authUser.uid), limit(20));
+    if (user.role === 'Super Admin' || user.role === 'Admin') return query(q, limit(20));
     
     return query(q, where("department", "==", user.department || "General"), limit(20));
   }, [db, user, authUser]);

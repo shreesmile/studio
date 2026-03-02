@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth-store";
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase";
-import { setDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { collection, query, where, doc, limit, serverTimestamp, orderBy } from "firebase/firestore";
 import { Clock, LogIn, LogOut, CheckCircle, Loader2, Briefcase, FileText } from "lucide-react";
 import { format } from "date-fns";
@@ -27,15 +27,17 @@ export function AttendanceTab() {
   const [notes, setNotes] = useState("");
 
   const attendanceQuery = useMemoFirebase(() => {
-    // Safety guard: Don't run if auth user doesn't match profile yet
-    if (!authUser || !user || user.id !== authUser.uid) return null;
+    // Safety guard: Don't run if auth user doesn't match profile yet or profile is missing
+    if (!authUser || !user || user.id !== authUser.uid || !user.role) return null;
     
     let q = query(collection(db, "attendance"));
     
-    // Strict filtering based on role to match security rules
+    // STRICT filtering to match security rules. 
+    // Employees ONLY see their own records.
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role)) {
+      // Team Leads and Managers see departmental records
       q = query(q, where("department", "==", user.department || "General"));
     }
     // Admins can list all, no extra where needed

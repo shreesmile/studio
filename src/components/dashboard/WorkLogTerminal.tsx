@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,17 +39,36 @@ export function WorkLogTerminal() {
   });
 
   const projectsQuery = useMemoFirebase(() => {
-    if (!authUser || !user) return null;
-    return query(collection(db, "projects"), where("department", "==", user.department));
+    if (!authUser || !user || !user.role) return null;
+    let q = query(collection(db, "projects"));
+    
+    // STRICT filtering based on role to match security rules
+    if (user.role === 'Employee') {
+      q = query(q, where("assignedTo", "array-contains", authUser.uid));
+    } else {
+      q = query(q, where("department", "==", user.department || "General"));
+    }
+    return q;
   }, [db, user, authUser]);
 
   const { data: projects } = useCollection(projectsQuery);
 
   const logsQuery = useMemoFirebase(() => {
-    if (!authUser) return null;
-    let q = query(collection(db, "work_logs"), where("userId", "==", authUser.uid));
+    if (!authUser || !user || !user.role) return null;
+    let q = query(collection(db, "work_logs"));
+    
+    // Employees see ONLY their own logs
+    if (user.role === 'Employee') {
+      q = query(q, where("userId", "==", authUser.uid));
+    } else if (user.role === 'Super Admin' || user.role === 'Admin') {
+      // Global visibility for admins
+    } else {
+      // Departmental visibility for Managers/TLs
+      q = query(q, where("department", "==", user.department || "General"));
+    }
+    
     return query(q, orderBy("date", "desc"), limit(20));
-  }, [db, authUser]);
+  }, [db, authUser, user]);
 
   const { data: logs, isLoading } = useCollection(logsQuery);
 
@@ -75,7 +95,7 @@ export function WorkLogTerminal() {
       totalHours,
       userId: authUser.uid,
       userName: user.name,
-      department: user.department,
+      department: user.department || "General",
       createdAt: serverTimestamp()
     };
 
@@ -181,7 +201,9 @@ export function WorkLogTerminal() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-tighter text-xl">Work Log Interface</DialogTitle>
-            <DialogDescription className="text-xs uppercase tracking-widest font-bold opacity-70">Capture daily production metrics</DialogDescription>
+            <DialogDescription>
+              Capture daily production metrics and effort synchronization.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             <div className="space-y-2">
