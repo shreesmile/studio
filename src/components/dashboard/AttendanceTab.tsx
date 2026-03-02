@@ -27,20 +27,17 @@ export function AttendanceTab() {
   const [notes, setNotes] = useState("");
 
   const attendanceQuery = useMemoFirebase(() => {
-    // Safety guard: Don't run if auth user doesn't match profile yet or profile is missing
+    // Safety guard: Must have fully synced user profile to match security rules
     if (!authUser || !user || user.id !== authUser.uid || !user.role) return null;
     
     let q = query(collection(db, "attendance"));
     
     // STRICT filtering to match security rules. 
-    // Employees ONLY see their own records.
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role)) {
-      // Team Leads and Managers see departmental records
       q = query(q, where("department", "==", user.department || "General"));
     }
-    // Admins can list all, no extra where needed
     
     return query(q, orderBy("clockIn", "desc"), limit(50));
   }, [db, user, authUser]);

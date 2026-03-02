@@ -38,7 +38,8 @@ export function ProjectManagement() {
   });
 
   const projectsQuery = useMemoFirebase(() => {
-    if (!authUser || !user || !user.role) return null;
+    // CRITICAL: Must be fully synced to match security rules
+    if (!authUser || !user || !user.role || user.id !== authUser.uid) return null;
     
     let q = query(collection(db, "projects"));
     
@@ -47,11 +48,9 @@ export function ProjectManagement() {
     }
     
     if (user.role === 'Employee') {
-      // Employee MUST filter by assignedTo to satisfy security rules
       return query(q, where("assignedTo", "array-contains", authUser.uid));
     }
     
-    // Managers and Team Leads filter by department
     return query(q, where("department", "==", user.department || "Default"), orderBy("createdAt", "desc"));
   }, [db, user, authUser]);
 
@@ -149,7 +148,7 @@ export function ProjectManagement() {
         {(!projects || projects.length === 0) && !isLoading && (
           <div className="col-span-full py-20 text-center border-2 border-dashed rounded-[2rem] bg-white/50">
             <Briefcase className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">No strategic projects discovered in this security layer.</p>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">No strategic projects discovered in this security level.</p>
           </div>
         )}
       </div>
@@ -158,7 +157,7 @@ export function ProjectManagement() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-tighter text-xl">Initialize Strategic Project</DialogTitle>
-            <DialogDescription className="text-xs uppercase tracking-widest font-bold opacity-70">Define new organizational workspace</DialogDescription>
+            <DialogDescription className="text-xs uppercase tracking-widest font-bold opacity-70">Define new organizational workspace deliverables.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4 pt-4">
             <div className="space-y-2">

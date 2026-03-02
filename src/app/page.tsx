@@ -11,7 +11,6 @@ import { useUser, useFirestore, FirebaseClientProvider } from "@/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { LoginForm } from "@/components/auth/LoginForm";
 
-// Standard imports instead of lazy loading to prevent chunk loading errors
 import { OverviewTab } from "@/components/dashboard/OverviewTab";
 import { ProjectManagement } from "@/components/dashboard/ProjectManagement";
 import { TaskManagement } from "@/components/dashboard/TaskManagement";

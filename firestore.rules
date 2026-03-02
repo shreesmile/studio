@@ -7,77 +7,77 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function getUserData(uid) {
-      let path = /databases/$(database)/documents/users/$(uid);
-      return exists(path) ? get(path).data : {"role": "Employee", "department": "General"};
+    function hasRole(role) {
+      let roleKey = role.replace(" ", "_");
+      return exists(/databases/$(database)/documents/user_roles_$(roleKey)/$(request.auth.uid));
     }
 
-    function getLevel(role) {
-      return role == 'Super Admin' ? 5 :
-             role == 'Admin' ? 4 :
-             role == 'Manager' ? 3 :
-             role == 'Team Lead' ? 2 : 1;
+    function getWeight() {
+      return hasRole('Super Admin') ? 5 :
+             hasRole('Admin') ? 4 :
+             hasRole('Manager') ? 3 :
+             hasRole('Team Lead') ? 2 : 1;
     }
 
-    function getMyWeight() {
-      return getLevel(getUserData(request.auth.uid).role);
+    function getUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     function isMyDept(dept) {
-      let myDept = getUserData(request.auth.uid).department;
+      let myDept = getUser().department;
       return myDept == dept || (myDept == 'Default' && dept == 'General') || (myDept == 'General' && dept == 'Default');
     }
 
     match /users/{userId} {
       allow get: if isSignedIn();
-      allow list: if isSignedIn() && getMyWeight() >= 2;
-      allow create: if isSignedIn() && (request.auth.uid == userId || getMyWeight() >= 4);
+      allow list: if isSignedIn() && (getWeight() >= 2 || request.auth.uid == userId);
+      allow create: if isSignedIn() && (request.auth.uid == userId || getWeight() >= 4);
       allow update: if isSignedIn() && (
         (request.auth.uid == userId && request.resource.data.role == resource.data.role) ||
-        getMyWeight() >= 4 ||
-        (getMyWeight() == 3 && isMyDept(resource.data.department))
+        getWeight() >= 4 ||
+        (getWeight() == 3 && isMyDept(resource.data.department))
       );
-      allow delete: if isSignedIn() && getMyWeight() >= 4;
+      allow delete: if isSignedIn() && getWeight() >= 4;
     }
 
     match /projects/{projectId} {
       allow read: if isSignedIn() && (
-        getMyWeight() >= 4 ||
-        (getMyWeight() >= 2 && isMyDept(resource.data.department)) ||
+        getWeight() >= 4 ||
+        (getWeight() >= 2 && isMyDept(resource.data.department)) ||
         (resource.data.assignedTo != null && request.auth.uid in resource.data.assignedTo)
       );
-      allow create: if isSignedIn() && getMyWeight() >= 3;
-      allow update: if isSignedIn() && (getMyWeight() >= 3 && isMyDept(resource.data.department));
-      allow delete: if isSignedIn() && getMyWeight() >= 4;
+      allow create: if isSignedIn() && getWeight() >= 3;
+      allow update: if isSignedIn() && (getWeight() >= 3 && isMyDept(resource.data.department));
+      allow delete: if isSignedIn() && getWeight() >= 4;
     }
 
     match /tasks/{taskId} {
       allow read: if isSignedIn() && (
         resource.data.assignedTo == request.auth.uid ||
         resource.data.createdBy == request.auth.uid ||
-        getMyWeight() >= 4 ||
-        (getMyWeight() >= 2 && isMyDept(resource.data.assignedToDepartment))
+        getWeight() >= 4 ||
+        (getWeight() >= 2 && isMyDept(resource.data.assignedToDepartment))
       );
-      allow create: if isSignedIn() && getMyWeight() >= 2;
+      allow create: if isSignedIn() && getWeight() >= 2;
       allow update: if isSignedIn() && (
         resource.data.assignedTo == request.auth.uid ||
         resource.data.createdBy == request.auth.uid ||
-        getMyWeight() >= 3
+        getWeight() >= 3
       );
-      allow delete: if isSignedIn() && (resource.data.createdBy == request.auth.uid || getMyWeight() >= 4);
+      allow delete: if isSignedIn() && (resource.data.createdBy == request.auth.uid || getWeight() >= 4);
     }
 
     match /sub_tasks/{subTaskId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && getMyWeight() >= 1;
-      allow update, delete: if isSignedIn() && (resource.data.createdBy == request.auth.uid || getMyWeight() >= 3);
+      allow create: if isSignedIn() && getWeight() >= 1;
+      allow update, delete: if isSignedIn() && (resource.data.createdBy == request.auth.uid || getWeight() >= 3);
     }
 
     match /work_logs/{logId} {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
-        getMyWeight() >= 4 ||
-        (getMyWeight() >= 3 && isMyDept(resource.data.department))
+        getWeight() >= 4 ||
+        (getWeight() >= 3 && isMyDept(resource.data.department))
       );
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
@@ -86,8 +86,8 @@ service cloud.firestore {
     match /attendance/{id} {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
-        getMyWeight() >= 4 ||
-        (getMyWeight() >= 2 && isMyDept(resource.data.department))
+        getWeight() >= 4 ||
+        (getWeight() >= 2 && isMyDept(resource.data.department))
       );
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
@@ -96,17 +96,17 @@ service cloud.firestore {
     match /leave_requests/{id} {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
-        getMyWeight() >= 4 ||
-        (getMyWeight() >= 2 && isMyDept(resource.data.department))
+        getWeight() >= 4 ||
+        (getWeight() >= 2 && isMyDept(resource.data.department))
       );
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || getMyWeight() >= 3);
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3);
     }
 
-    match /user_roles_Super_Admin/{uid} { allow read, write: if isSignedIn() && getMyWeight() == 5; }
-    match /user_roles_Admin/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 4 || request.auth.uid == uid); }
-    match /user_roles_Manager/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 3 || request.auth.uid == uid); }
-    match /user_roles_Team_Lead/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 2 || request.auth.uid == uid); }
-    match /user_roles_Employee/{uid} { allow read, write: if isSignedIn() && (getMyWeight() >= 1 || request.auth.uid == uid); }
+    match /user_roles_Super_Admin/{uid} { allow read, write: if isSignedIn() && getWeight() == 5; }
+    match /user_roles_Admin/{uid} { allow read, write: if isSignedIn() && (getWeight() >= 4 || request.auth.uid == uid); }
+    match /user_roles_Manager/{uid} { allow read, write: if isSignedIn() && (getWeight() >= 3 || request.auth.uid == uid); }
+    match /user_roles_Team_Lead/{uid} { allow read, write: if isSignedIn() && (getWeight() >= 2 || request.auth.uid == uid); }
+    match /user_roles_Employee/{uid} { allow read, write: if isSignedIn() && (getWeight() >= 1 || request.auth.uid == uid); }
   }
 }

@@ -25,17 +25,15 @@ export function LeaveManagement() {
   const [newRequest, setNewRequest] = useState({ startDate: '', endDate: '', reason: '' });
 
   const leaveQuery = useMemoFirebase(() => {
-    // Safety guard: Don't run if auth user doesn't match profile yet or role is missing
+    // Safety guard: Must be fully synced to match security rules
     if (!authUser || !user || user.id !== authUser.uid || !user.role) return null;
     
     let q = query(collection(db, "leave_requests"));
     
-    // STRICT filtering based on role to match security rules. 
     // Employees see ONLY their own records.
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role)) {
-      // Team Leads and Managers see departmental records
       q = query(q, where("department", "==", user.department || "General"));
     }
     
@@ -160,7 +158,7 @@ export function LeaveManagement() {
           <DialogHeader>
             <DialogTitle className="uppercase tracking-tighter font-black">Leave Application Terminal</DialogTitle>
             <DialogDescription>
-              Submit a formal request for organizational leave approval.
+              Submit a formal request for organizational leave approval for specific date ranges.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleRequestSubmit} className="space-y-4 pt-4">

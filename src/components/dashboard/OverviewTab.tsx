@@ -25,7 +25,7 @@ export function OverviewTab() {
   const db = useFirestore();
 
   const projectsQuery = useMemoFirebase(() => {
-    // CRITICAL: Ensure profile is fully synchronized before querying to match security rules
+    // CRITICAL: Ensure profile is fully synchronized and matches authUser to satisfy security rules
     if (!authUser || !user || !user.role || user.id !== authUser.uid) return null;
     
     let q = query(collection(db, "projects"));
@@ -36,13 +36,11 @@ export function OverviewTab() {
     }
     
     // Employees are STRICTLY restricted to projects where they are assigned.
-    // This query must match the 'allow read' rule exactly to prevent permission errors.
     if (user.role === 'Employee') {
       return query(q, where("assignedTo", "array-contains", authUser.uid), limit(10));
     }
     
     // Managers and Team Leads see departmental projects. 
-    // Fallback to "General" to match security rules department fallback.
     const dept = user.department || "General";
     return query(q, where("department", "==", dept), orderBy("createdAt", "desc"), limit(10));
   }, [db, user, authUser]);
