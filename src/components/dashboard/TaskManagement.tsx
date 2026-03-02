@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from "react";
@@ -46,9 +47,23 @@ export function TaskManagement() {
   const tasks = allTasks?.filter(t => filterStatus === 'all' || t.status === filterStatus) || [];
 
   const projectsRef = useMemoFirebase(() => {
-    if (!currentUser) return null;
-    return query(collection(db, "projects"), where("department", "==", currentUser.department));
-  }, [db, currentUser]);
+    if (!currentUser || !currentUser.role || !authUser || currentUser.id !== authUser.uid) return null;
+    let q = query(collection(db, "projects"));
+    
+    // For Employees, we MUST filter projects by assignedTo to satisfy rules
+    if (currentUser.role === 'Employee') {
+      return query(q, where("assignedTo", "array-contains", authUser.uid));
+    }
+    
+    // For Admins, no filter needed
+    if (currentUser.role === 'Super Admin' || currentUser.role === 'Admin') {
+      return q;
+    }
+
+    // For Managers/TLs, departmental filter
+    return query(q, where("department", "==", currentUser.department || "General"));
+  }, [db, currentUser, authUser]);
+  
   const { data: projects } = useCollection(projectsRef);
 
   const usersRef = useMemoFirebase(() => {

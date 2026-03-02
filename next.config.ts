@@ -13,7 +13,8 @@ const nextConfig: NextConfig = {
   experimental: {
     allowedDevOrigins: [
       '6000-firebase-studio-1772357960751.cluster-fdkw7vjj7bgguspe3fbbc25tra.cloudworkstations.dev',
-      'localhost:9002'
+      'localhost:9002',
+      '0.0.0.0:9002'
     ],
   },
   images: {

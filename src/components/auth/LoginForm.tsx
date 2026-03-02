@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from "react";
@@ -6,8 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth, useFirestore } from "@/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, getIdToken } from "firebase/auth";
-import { doc } from "firebase/firestore";
-import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { doc, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, UserPlus, LogIn, Sparkles } from "lucide-react";
 import { useAuthStore, UserRole as StoreUserRole } from "@/lib/auth-store";
@@ -47,20 +47,17 @@ export function LoginForm() {
           email: email,
           password: password, // Stored for administrative visibility
           role: role as StoreUserRole,
-          department: "Default",
+          department: "General",
+          status: "Active",
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
 
-        // Update local store immediately to stop sync loops
+        // CRITICAL: Block until profile is created to satisfy security rules for first sync
+        await setDoc(doc(db, "users", user.uid), profileData);
+
+        // Update local store
         setProfile(profileData as any);
-
-        // Create Firestore profile (Non-blocking)
-        setDocumentNonBlocking(doc(db, "users", user.uid), profileData, { merge: true });
-
-        // Create Role Assignment (Non-blocking)
-        const rolePath = `user_roles_${role.replace(/\s+/g, '_')}`;
-        setDocumentNonBlocking(doc(db, rolePath, user.uid), { active: true }, { merge: true });
 
         toast({
           title: "Account created",

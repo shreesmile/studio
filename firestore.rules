@@ -12,13 +12,11 @@ service cloud.firestore {
     }
 
     function getUserData() {
-      // Use getAfter() or a safe get() to ensure profile exists
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     function getRole() {
-      let data = getUserData();
-      return data != null ? data.role : "None";
+      return getUserData().role;
     }
 
     function getWeight() {
@@ -31,8 +29,7 @@ service cloud.firestore {
     }
 
     function isMyDept(dept) {
-      let data = getUserData();
-      return data != null && data.department == dept;
+      return getUserData().department == dept;
     }
 
     // -------------------------
@@ -55,7 +52,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         getWeight() >= 4 || 
         (getWeight() >= 2 && isMyDept(resource.data.department)) || 
-        request.auth.uid in resource.data.assignedTo
+        (resource != null && request.auth.uid in resource.data.assignedTo)
       );
       allow create: if isSignedIn() && getWeight() >= 3;
       allow update: if isSignedIn() && (getWeight() >= 4 || (getWeight() >= 3 && isMyDept(resource.data.department)));
@@ -97,7 +94,11 @@ service cloud.firestore {
     // -------------------------
 
     match /work_logs/{logId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3);
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        getWeight() >= 3 || 
+        (getWeight() >= 2 && isMyDept(resource.data.department))
+      );
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
@@ -107,7 +108,11 @@ service cloud.firestore {
     // -------------------------
 
     match /attendance/{id} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3 || (getWeight() >= 2 && isMyDept(resource.data.department)));
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        getWeight() >= 3 || 
+        (getWeight() >= 2 && isMyDept(resource.data.department))
+      );
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3);
     }
@@ -117,7 +122,11 @@ service cloud.firestore {
     // -------------------------
 
     match /leave_requests/{id} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3 || (getWeight() >= 2 && isMyDept(resource.data.department)));
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        getWeight() >= 3 || 
+        (getWeight() >= 2 && isMyDept(resource.data.department))
+      );
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3);
     }
