@@ -121,9 +121,10 @@ service cloud.firestore {
     // -------------------------
 
     match /attendance/{attendanceId} {
+      // Explicitly allow Admins to bypass resource.data checks for listing
       allow read, list: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || 
         getWeight() >= 4 || 
+        resource.data.userId == request.auth.uid || 
         (getWeight() >= 2 && isMyDept(resource.data.department))
       );
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
@@ -136,8 +137,8 @@ service cloud.firestore {
 
     match /leave_requests/{requestId} {
       allow read, list: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || 
         getWeight() >= 4 || 
+        resource.data.userId == request.auth.uid || 
         (getWeight() >= 2 && isMyDept(resource.data.department))
       );
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;

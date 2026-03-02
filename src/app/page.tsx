@@ -79,13 +79,16 @@ function DashboardContent() {
       
       const unsub = onSnapshot(doc(db, "users", authUser.uid), (docSnap) => {
         if (docSnap.exists()) {
-          setProfile(docSnap.data() as any);
+          const data = docSnap.data();
+          // Ensure the ID is always present for store consistency
+          setProfile({ ...data, id: docSnap.id } as any);
           setProfileMissing(false);
         } else {
           setProfileMissing(true);
         }
         setIsInitializing(false);
       }, (err) => {
+        console.error("[Dashboard] Profile sync failed:", err);
         setProfileMissing(true);
         setIsInitializing(false);
       });
@@ -109,7 +112,7 @@ function DashboardContent() {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Syncing Secure Environment...</p>
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Synchronizing Secure Environment...</p>
       </div>
     );
   }
