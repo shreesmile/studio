@@ -12,11 +12,13 @@ service cloud.firestore {
     }
 
     function getUserData() {
+      // Use getAfter() or a safe get() to ensure profile exists
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     function getRole() {
-      return getUserData().role;
+      let data = getUserData();
+      return data != null ? data.role : "None";
     }
 
     function getWeight() {
@@ -24,11 +26,13 @@ service cloud.firestore {
       return role == "Super Admin" ? 5 :
              role == "Admin" ? 4 :
              role == "Manager" ? 3 :
-             role == "Team Lead" ? 2 : 1;
+             role == "Team Lead" ? 2 : 
+             role == "Employee" ? 1 : 0;
     }
 
     function isMyDept(dept) {
-      return getUserData().department == dept;
+      let data = getUserData();
+      return data != null && data.department == dept;
     }
 
     // -------------------------
@@ -105,7 +109,7 @@ service cloud.firestore {
     match /attendance/{id} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3 || (getWeight() >= 2 && isMyDept(resource.data.department)));
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || getWeight() >= 3);
     }
 
     // -------------------------

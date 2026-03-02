@@ -5,11 +5,14 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { useAuthStore } from "@/lib/auth-store";
-import { ShieldCheck, Lock, Loader2 } from "lucide-react";
+import { ShieldCheck, Lock, Loader2, AlertTriangle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useUser, useFirestore, FirebaseClientProvider } from "@/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { Button } from "@/components/ui/button";
+import { signOut } from "firebase/auth";
+import { useAuth } from "@/firebase";
 
 import { OverviewTab } from "@/components/dashboard/OverviewTab";
 import { ProjectManagement } from "@/components/dashboard/ProjectManagement";
@@ -24,8 +27,10 @@ function DashboardContent() {
   const { user: authUser, isUserLoading } = useUser();
   const { profile, setProfile, logout: clearProfile } = useAuthStore();
   const db = useFirestore();
+  const auth = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isInitializing, setIsInitializing] = useState(true);
+  const [profileMissing, setProfileMissing] = useState(false);
   const syncRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -35,6 +40,7 @@ function DashboardContent() {
       clearProfile();
       syncRef.current = null;
       setIsInitializing(false);
+      setProfileMissing(false);
       return;
     }
 
@@ -42,15 +48,22 @@ function DashboardContent() {
     if (authUser && (syncRef.current !== authUser.uid || !profile || profile.id !== authUser.uid)) {
       syncRef.current = authUser.uid;
       setIsInitializing(true);
+      setProfileMissing(false);
       
       const unsub = onSnapshot(doc(db, "users", authUser.uid), (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setProfile(data as any);
+          setProfileMissing(false);
+        } else {
+          // USER EXISTS IN AUTH BUT NO PROFILE IN FIRESTORE
+          // This causes permission errors for other queries
+          setProfileMissing(true);
         }
         setIsInitializing(false);
       }, (err) => {
         console.error("Profile synchronization failure:", err);
+        setProfileMissing(true);
         setIsInitializing(false);
       });
       return () => unsub();
@@ -63,11 +76,38 @@ function DashboardContent() {
     setActiveTab(id);
   }, []);
 
-  if (isUserLoading || (authUser && (isInitializing || !profile || profile.id !== authUser.uid))) {
+  const handleLogout = async () => {
+    await signOut(auth);
+    clearProfile();
+    window.location.reload();
+  };
+
+  if (isUserLoading || (authUser && (isInitializing))) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Verifying Clearance...</p>
+      </div>
+    );
+  }
+
+  if (profileMissing) {
+    return (
+      <div className="min-h-screen bg-[#ECF1F4] flex flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full bg-white p-8 rounded-[2rem] shadow-2xl space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto">
+            <AlertTriangle className="text-destructive w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-black uppercase tracking-tighter">Security Marker Missing</h1>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Your authentication session is valid, but your organizational profile (Role & Department) was not found in the Firestore directory. 
+            </p>
+          </div>
+          <Button onClick={handleLogout} variant="outline" className="w-full">
+            Return to Login
+          </Button>
+        </div>
       </div>
     );
   }
