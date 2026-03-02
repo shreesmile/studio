@@ -7,11 +7,13 @@ const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-inter',
+  preload: true,
 });
 
 export const metadata: Metadata = {
   title: 'RoleFlow - Professional RBAC Platform',
   description: 'Enterprise-grade role-based access control with AI insights.',
+  metadataBase: new URL('https://roleflow.io'), // Recommended for SEO and robots.txt
 };
 
 export default function RootLayout({
@@ -21,6 +23,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className={inter.variable}>
+      <head>
+        {/* Resource Hints for Performance */}
+        <link rel="preconnect" href="https://identitytoolkit.googleapis.com" />
+        <link rel="preconnect" href="https://firestore.googleapis.com" />
+      </head>
       <body className="font-body antialiased" suppressHydrationWarning>
         {children}
         <Toaster />

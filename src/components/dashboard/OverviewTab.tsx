@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from "react";
@@ -25,9 +24,7 @@ export const OverviewTab = React.memo(() => {
   const db = useFirestore();
 
   const projectsQuery = useMemoFirebase(() => {
-    // SECURITY: Defensive wait for full profile sync to satisfy rules
     if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) {
-      console.log("[Overview] User profile not yet synchronized. Deferred projects query.");
       return null;
     }
     
@@ -37,7 +34,6 @@ export const OverviewTab = React.memo(() => {
       return query(q, limit(10));
     }
     
-    // Non-admins MUST use filters that prove access to satisfy security rules
     const filters = [
       where("assignedUsers", "array-contains", authUser.uid),
       where("createdBy", "==", authUser.uid)
@@ -76,11 +72,11 @@ export const OverviewTab = React.memo(() => {
         {heroImage && (
           <Image 
             src={heroImage.imageUrl}
-            alt="Dashboard Hero"
+            alt="RoleFlow Command Center Background"
             fill
             className="object-cover opacity-80"
-            priority // Critical for LCP optimization
-            sizes="(max-width: 1280px) 100vw, 1200px"
+            priority // Critical for LCP
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             data-ai-hint={heroImage.imageHint}
           />
         )}
@@ -102,7 +98,7 @@ export const OverviewTab = React.memo(() => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-1 text-[9px] font-bold text-green-600 uppercase">
-              <TrendingUp className="w-3 h-3" />
+              <TrendingUp className="w-3 h-3" aria-hidden="true" />
               Strategic Growth
             </div>
           </CardContent>
@@ -143,7 +139,7 @@ export const OverviewTab = React.memo(() => {
         <Card className="md:col-span-2 border-none shadow-md bg-white overflow-hidden">
           <CardHeader className="border-b bg-muted/10">
             <CardTitle className="text-sm font-bold flex items-center gap-2 uppercase tracking-widest">
-              <BarChart3 className="w-4 h-4 text-primary" />
+              <BarChart3 className="w-4 h-4 text-primary" aria-hidden="true" />
               Strategic Insight
             </CardTitle>
           </CardHeader>
@@ -153,7 +149,7 @@ export const OverviewTab = React.memo(() => {
                 <div key={p.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-all">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Briefcase className="w-4 h-4 text-primary" />
+                      <Briefcase className="w-4 h-4 text-primary" aria-hidden="true" />
                     </div>
                     <div>
                       <p className="text-xs font-bold text-foreground uppercase tracking-tighter">{p.name}</p>
@@ -178,7 +174,7 @@ export const OverviewTab = React.memo(() => {
           <Card className="border-accent/10 bg-accent/5 shadow-inner">
             <CardHeader>
               <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                <BrainCircuit className="w-4 h-4 text-accent" />
+                <BrainCircuit className="w-4 h-4 text-accent" aria-hidden="true" />
                 AI Strategy
               </CardTitle>
             </CardHeader>
@@ -188,7 +184,7 @@ export const OverviewTab = React.memo(() => {
               </p>
               <Button variant="outline" size="sm" className="w-full text-[9px] font-black uppercase tracking-widest border-accent/20 text-accent hover:bg-accent/10">
                 Synchronize Strategy
-                <Sparkles className="ml-2 w-3 h-3" />
+                <Sparkles className="ml-2 w-3 h-3" aria-hidden="true" />
               </Button>
             </CardContent>
           </Card>

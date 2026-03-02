@@ -1,24 +1,25 @@
 "use client";
 
 import React from "react";
+import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from "recharts";
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, where, orderBy, limit } from "firebase/firestore";
+import { collection, query, where, limit } from "firebase/firestore";
 import { PieChart as PieIcon, BarChart3, Download, Loader2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/auth-store";
+
+// Lazy load Recharts components to minimize initial JS execution and main-thread work
+const ResponsiveContainer = dynamic(() => import("recharts").then(mod => mod.ResponsiveContainer), { ssr: false });
+const BarChart = dynamic(() => import("recharts").then(mod => mod.BarChart), { ssr: false });
+const Bar = dynamic(() => import("recharts").then(mod => mod.Bar), { ssr: false });
+const XAxis = dynamic(() => import("recharts").then(mod => mod.XAxis), { ssr: false });
+const YAxis = dynamic(() => import("recharts").then(mod => mod.YAxis), { ssr: false });
+const CartesianGrid = dynamic(() => import("recharts").then(mod => mod.CartesianGrid), { ssr: false });
+const Tooltip = dynamic(() => import("recharts").then(mod => mod.Tooltip), { ssr: false });
+const PieChart = dynamic(() => import("recharts").then(mod => mod.PieChart), { ssr: false });
+const Pie = dynamic(() => import("recharts").then(mod => mod.Pie), { ssr: false });
+const Cell = dynamic(() => import("recharts").then(mod => mod.Cell), { ssr: false });
 
 const COLORS = ['#457399', '#5847CC', '#6366f1', '#a855f7', '#ec4899'];
 
@@ -41,7 +42,7 @@ export function ReportsTab() {
     if (!logs) return [];
     const dateMap: Record<string, number> = {};
     logs.forEach(log => {
-      dateMap[log.date] = (dateMap[log.date] || 0) + log.totalHours;
+      dateMap[log.date] = (dateMap[log.date] || 0) + (log.totalHours || 0);
     });
     return Object.entries(dateMap)
       .map(([date, hours]) => ({ date, hours }))
@@ -54,7 +55,7 @@ export function ReportsTab() {
     const deptMap: Record<string, number> = {};
     logs.forEach(log => {
       const dept = log.department || 'General';
-      deptMap[dept] = (deptMap[dept] || 0) + log.totalHours;
+      deptMap[dept] = (deptMap[dept] || 0) + (log.totalHours || 0);
     });
     return Object.entries(deptMap).map(([name, value]) => ({ name, value }));
   }, [logs]);
@@ -62,7 +63,7 @@ export function ReportsTab() {
   const exportToCSV = () => {
     if (!logs) return;
     const headers = ["Date", "User", "Department", "Hours", "Note"];
-    const rows = logs.map(l => [l.date, l.userName, l.department, l.totalHours, l.progressNote.replace(/,/g, ' ')]);
+    const rows = logs.map(l => [l.date, l.userName, l.department, l.totalHours, (l.progressNote || "").replace(/,/g, ' ')]);
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -81,7 +82,7 @@ export function ReportsTab() {
           <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Performance Intelligence Layer</p>
         </div>
         <Button onClick={exportToCSV} variant="outline" className="border-primary/20 text-primary hover:bg-primary/5">
-          <Download className="mr-2 h-4 w-4" />
+          <Download className="mr-2 h-4 w-4" aria-hidden="true" />
           Export Dataset (CSV)
         </Button>
       </div>
@@ -90,10 +91,10 @@ export function ReportsTab() {
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-primary" />
+              <BarChart3 className="w-4 h-4 text-primary" aria-hidden="true" />
               Production Timeline (Last 7 Days)
             </CardTitle>
-            <TrendingUp className="w-4 h-4 text-green-500" />
+            <TrendingUp className="w-4 h-4 text-green-500" aria-hidden="true" />
           </CardHeader>
           <CardContent className="h-[300px] pt-6">
             {isLoading ? (
@@ -107,7 +108,7 @@ export function ReportsTab() {
                   <Tooltip 
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '10px' }}
                   />
-                  <Bar dataKey="hours" fill="#457399" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="hours" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -117,7 +118,7 @@ export function ReportsTab() {
         <Card className="border-none shadow-sm bg-white">
           <CardHeader>
             <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-              <PieIcon className="w-4 h-4 text-accent" />
+              <PieIcon className="w-4 h-4 text-accent" aria-hidden="true" />
               Organizational Effort Distribution
             </CardTitle>
           </CardHeader>
