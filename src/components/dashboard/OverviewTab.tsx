@@ -25,24 +25,26 @@ export function OverviewTab() {
 
   const projectsQuery = useMemoFirebase(() => {
     // CRITICAL: Ensure profile is fully synchronized and matches authUser to satisfy security rules
-    // If we don't have role/department yet, return null to avoid unauthorized Broad Queries
-    if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) return null;
+    if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) {
+      console.log("[OverviewTab] Waiting for organizational profile sync...");
+      return null;
+    }
     
+    console.log(`[OverviewTab] Initiating project discovery for ${user.role} in ${user.department}`);
     let q = query(collection(db, "projects"));
     
-    // Admins and Super Admins have global visibility
     if (user.role === 'Super Admin' || user.role === 'Admin') {
       return query(q, orderBy("createdAt", "desc"), limit(10));
     }
     
-    // Employees are STRICTLY restricted to projects where they are assigned.
     if (user.role === 'Employee') {
+      // Employees strictly filter by assignedTo
       return query(q, where("assignedTo", "array-contains", authUser.uid), limit(10));
     }
     
-    // Managers and Team Leads see departmental projects. 
-    const dept = user.department;
-    return query(q, where("department", "==", dept), orderBy("createdAt", "desc"), limit(10));
+    // Managers and Team Leads see departmental projects
+    // Note: Removed orderBy("createdAt") here to avoid index requirements for now
+    return query(q, where("department", "==", user.department), limit(10));
   }, [db, user, authUser]);
 
   const { data: projects, isLoading: loadingProjects } = useCollection(projectsQuery);
@@ -155,7 +157,7 @@ export function OverviewTab() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-[11px] text-muted-foreground leading-relaxed italic">
-                "Production analysis suggests {user?.department || "General"} department is at {Math.floor(Math.random() * 20) + 70}% efficiency. Recommendation: Synchronize sub-task deadlines."
+                "Production analysis suggests {user?.department || "General"} department is performing at optimal levels. Recommendation: Synchronize upcoming sub-task deadlines."
               </p>
               <Button variant="outline" size="sm" className="w-full text-[9px] font-black uppercase tracking-widest border-accent/20 text-accent hover:bg-accent/10">
                 Refresh Neural Context

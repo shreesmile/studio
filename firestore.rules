@@ -12,8 +12,9 @@ service cloud.firestore {
     }
 
     function getUserData() {
-      // Safely get user profile
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      // Safely check for existence before getting data to prevent permission crashes
+      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(userPath) ? get(userPath).data : null;
     }
 
     function getRole() {

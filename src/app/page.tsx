@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -36,7 +37,7 @@ function DashboardContent() {
     if (isUserLoading) return;
 
     if (!authUser) {
-      console.log("[Auth] No authenticated user found. Clearing profile.");
+      console.log("[Auth] No authenticated user found. Clearing local profile store.");
       clearProfile();
       syncRef.current = null;
       setIsInitializing(false);
@@ -46,7 +47,7 @@ function DashboardContent() {
 
     // Only subscribe if the user ID has changed or profile is missing/stale
     if (authUser && (syncRef.current !== authUser.uid || !profile || profile.id !== authUser.uid)) {
-      console.log(`[ProfileSync] Initializing profile sync for UID: ${authUser.uid}`);
+      console.log(`[ProfileSync] Initializing real-time profile discovery for UID: ${authUser.uid}`);
       syncRef.current = authUser.uid;
       setIsInitializing(true);
       setProfileMissing(false);
@@ -54,16 +55,16 @@ function DashboardContent() {
       const unsub = onSnapshot(doc(db, "users", authUser.uid), (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          console.log(`[ProfileSync] Profile found for ${data.name} (${data.role})`);
+          console.log(`[ProfileSync] Organizational profile identified for ${data.name} (Role: ${data.role})`);
           setProfile(data as any);
           setProfileMissing(false);
         } else {
-          console.warn(`[ProfileSync] Security Marker Missing for UID: ${authUser.uid}. No Firestore document found in /users.`);
+          console.warn(`[ProfileSync] CRITICAL: Security marker missing for UID: ${authUser.uid}. No document at /users/${authUser.uid}`);
           setProfileMissing(true);
         }
         setIsInitializing(false);
       }, (err) => {
-        console.error("[ProfileSync] Synchronization failure:", err);
+        console.error("[ProfileSync] Synchronization failure. Clearance denied by security rules or missing document:", err);
         setProfileMissing(true);
         setIsInitializing(false);
       });
@@ -74,22 +75,22 @@ function DashboardContent() {
   }, [authUser, isUserLoading, db, setProfile, clearProfile, profile]);
 
   const handleTabChange = useCallback((id: string) => {
-    console.log(`[Navigation] Switching to tab: ${id}`);
+    console.log(`[Navigation] Transitioning to module: ${id}`);
     setActiveTab(id);
   }, []);
 
   const handleLogout = async () => {
-    console.log("[Auth] Initiating logout sequence.");
+    console.log("[Auth] Terminal logout sequence initiated.");
     await signOut(auth);
     clearProfile();
     window.location.reload();
   };
 
-  if (isUserLoading || (authUser && (isInitializing))) {
+  if (isUserLoading || (authUser && isInitializing)) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#ECF1F4] gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Verifying Clearance...</p>
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Verifying Clearance Layer...</p>
       </div>
     );
   }
@@ -97,18 +98,18 @@ function DashboardContent() {
   if (profileMissing) {
     return (
       <div className="min-h-screen bg-[#ECF1F4] flex flex-col items-center justify-center p-6 text-center">
-        <div className="max-w-md w-full bg-white p-8 rounded-[2rem] shadow-2xl space-y-6">
-          <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto">
-            <AlertTriangle className="text-destructive w-8 h-8" />
+        <div className="max-w-md w-full bg-white p-10 rounded-[2.5rem] shadow-2xl space-y-6 border border-destructive/20">
+          <div className="w-20 h-20 rounded-3xl bg-destructive/10 flex items-center justify-center mx-auto shadow-inner">
+            <AlertTriangle className="text-destructive w-10 h-10" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-xl font-black uppercase tracking-tighter">Security Marker Missing</h1>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Your authentication session is valid, but your organizational profile (Role & Department) was not found in the Firestore directory. 
+            <h1 className="text-2xl font-black uppercase tracking-tighter text-foreground">Security Marker Missing</h1>
+            <p className="text-xs text-muted-foreground leading-relaxed px-4">
+              Authentication session is valid, but your organizational profile (Role & Unit) was not found in the Firestore directory. 
             </p>
           </div>
-          <Button onClick={handleLogout} variant="outline" className="w-full">
-            Return to Login
+          <Button onClick={handleLogout} variant="outline" className="w-full h-12 uppercase tracking-widest font-black text-[10px] border-muted hover:bg-muted/50 transition-all">
+            Return to Login Terminal
           </Button>
         </div>
       </div>
@@ -182,7 +183,7 @@ function DashboardContent() {
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <p className="text-[9px] font-bold text-muted-foreground uppercase leading-none">Security Level</p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase leading-none">Clearance Status</p>
                 <p className="text-[11px] font-black text-accent uppercase">{profile?.role || "Synchronizing..."}</p>
               </div>
             </div>

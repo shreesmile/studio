@@ -38,9 +38,13 @@ export function ProjectManagement() {
   });
 
   const projectsQuery = useMemoFirebase(() => {
-    // CRITICAL: Must be fully synced to match security rules
-    if (!authUser || !user || !user.role || user.id !== authUser.uid) return null;
+    // CRITICAL: Ensure full profile sync before initiating list query
+    if (!authUser || !user || !user.role || !user.department || user.id !== authUser.uid) {
+      console.log("[ProjectManagement] Waiting for organizational sync...");
+      return null;
+    }
     
+    console.log(`[ProjectManagement] Discovering projects for ${user.role}`);
     let q = query(collection(db, "projects"));
     
     if (user.role === 'Super Admin' || user.role === 'Admin') {
@@ -51,8 +55,8 @@ export function ProjectManagement() {
       return query(q, where("assignedTo", "array-contains", authUser.uid));
     }
     
-    // For Managers and Team Leads
-    return query(q, where("department", "==", user.department || "Default"), orderBy("createdAt", "desc"));
+    // For Managers and Team Leads - filter by department
+    return query(q, where("department", "==", user.department));
   }, [db, user, authUser]);
 
   const { data: projects, isLoading } = useCollection(projectsQuery);
