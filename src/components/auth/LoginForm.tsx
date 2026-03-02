@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from "react";
@@ -8,7 +9,7 @@ import { useAuth, useFirestore } from "@/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, getIdToken } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, LogIn, Sparkles } from "lucide-react";
+import { Loader2, UserPlus, LogIn, Sparkles, AlertCircle } from "lucide-react";
 import { useAuthStore, UserRole as StoreUserRole } from "@/lib/auth-store";
 import { 
   Select, 
@@ -17,6 +18,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export function LoginForm() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -25,6 +27,7 @@ export function LoginForm() {
   const [name, setName] = useState("");
   const [role, setRole] = useState("Employee");
   const [isLoading, setIsLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   
   const auth = useAuth();
   const db = useFirestore();
@@ -33,7 +36,10 @@ export function LoginForm() {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(false);
+    setAuthError(null);
     setIsLoading(true);
+    
     console.log(`[AuthAction] Attempting ${isSignUp ? 'Sign Up' : 'Login'} for ${email}`);
     
     try {
@@ -41,13 +47,12 @@ export function LoginForm() {
       if (isSignUp) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
-        console.log(`[AuthAction] Firebase User created: ${user.uid}`);
         
         const profileData = {
           id: user.uid,
           name: name || "Anonymous User",
           email: email,
-          password: password, // Stored for administrative visibility
+          password: password,
           role: role as StoreUserRole,
           department: "General",
           status: "Active",
@@ -55,12 +60,7 @@ export function LoginForm() {
           updatedAt: new Date().toISOString()
         };
 
-        console.log(`[AuthAction] Creating Firestore profile at /users/${user.uid}`);
-        // CRITICAL: Block until profile is created to satisfy security rules for first sync
         await setDoc(doc(db, "users", user.uid), profileData);
-        console.log("[AuthAction] Firestore profile created successfully.");
-
-        // Update local store
         setProfile(profileData as any);
 
         toast({
@@ -70,25 +70,32 @@ export function LoginForm() {
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
-        console.log(`[AuthAction] Login successful for UID: ${user.uid}`);
       }
 
-      // Sync with Next.js Middleware via session API
-      console.log("[AuthAction] Syncing session with middleware...");
       const idToken = await getIdToken(user);
       await fetch('/api/auth/session', {
         method: 'POST',
         body: JSON.stringify({ idToken }),
         headers: { 'Content-Type': 'application/json' }
       });
-      console.log("[AuthAction] Session sync complete.");
 
     } catch (error: any) {
-      console.error("[AuthAction] Authentication failed:", error);
+      console.error("[AuthAction] Authentication failed:", error.code);
+      
+      let errorMessage = error.message;
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = "This identity is already registered in our system. Please try signing in instead.";
+      } else if (error.code === 'auth/invalid-credential') {
+        errorMessage = "Invalid clearance credentials. Please verify your email and passkey.";
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = "The provided passkey does not meet organizational security standards.";
+      }
+      
+      setAuthError(errorMessage);
       toast({
         variant: "destructive",
-        title: "Authentication error",
-        description: error.message
+        title: "Security Conflict",
+        description: errorMessage
       });
     } finally {
       setIsLoading(false);
@@ -96,10 +103,10 @@ export function LoginForm() {
   };
 
   const handleDemoLogin = async () => {
-    console.log("[AuthAction] Using demo credentials.");
     setEmail("admin@roleflow.io");
     setPassword("password123");
     setIsSignUp(false);
+    setAuthError(null);
   };
 
   return (
@@ -113,6 +120,14 @@ export function LoginForm() {
             {isSignUp ? "Join the professional RBAC platform" : "Enter your credentials to access RoleFlow"}
           </p>
         </div>
+
+        {authError && (
+          <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-destructive text-[11px] font-bold">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle className="uppercase tracking-widest text-[9px] mb-1">Authorization Error</AlertTitle>
+            <AlertDescription>{authError}</AlertDescription>
+          </Alert>
+        )}
         
         {isSignUp && (
           <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
@@ -172,7 +187,7 @@ export function LoginForm() {
           {isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
+              Verifying...
             </>
           ) : (
             <>
@@ -187,7 +202,10 @@ export function LoginForm() {
         <Button 
           variant="ghost" 
           className="w-full text-xs" 
-          onClick={() => setIsSignUp(!isSignUp)}
+          onClick={() => {
+            setIsSignUp(!isSignUp);
+            setAuthError(null);
+          }}
         >
           {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Create one"}
         </Button>
