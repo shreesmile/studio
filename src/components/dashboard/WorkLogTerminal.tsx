@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,22 +28,29 @@ export function WorkLogTerminal() {
   const db = useFirestore();
   const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
   const [log, setLog] = useState({ 
     projectId: '', 
     taskId: '', 
-    date: format(new Date(), "yyyy-MM-dd"), 
+    date: '', 
     startTime: '09:00', 
     endTime: '17:00', 
     progressNote: '' 
   });
 
+  useEffect(() => {
+    // Initialize date on client to avoid hydration mismatch
+    setLog(prev => ({
+      ...prev,
+      date: format(new Date(), "yyyy-MM-dd")
+    }));
+  }, []);
+
   const projectsQuery = useMemoFirebase(() => {
-    // Wait for organizational sync to satisfy security rules
     if (!authUser || !user || !user.role || user.id !== authUser.uid) return null;
     
     let q = query(collection(db, "projects"));
     
-    // STRICT filtering based on role to match security rules
     if (user.role === 'Employee') {
       q = query(q, where("assignedTo", "array-contains", authUser.uid));
     } else if (user.role !== 'Super Admin' && user.role !== 'Admin') {
@@ -56,18 +62,14 @@ export function WorkLogTerminal() {
   const { data: projects } = useCollection(projectsQuery);
 
   const logsQuery = useMemoFirebase(() => {
-    // Wait for organizational sync to satisfy security rules
     if (!authUser || !user || !user.role || user.id !== authUser.uid) return null;
     
     let q = query(collection(db, "work_logs"));
     
-    // Employees see ONLY their own logs
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (user.role === 'Super Admin' || user.role === 'Admin') {
-      // Global visibility for admins
     } else {
-      // Departmental visibility for Managers/TLs
       q = query(q, where("department", "==", user.department || "General"));
     }
     

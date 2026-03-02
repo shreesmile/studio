@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,18 +20,30 @@ export function AttendanceTab() {
   const { user: authUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
-  const today = format(new Date(), "yyyy-MM-dd");
+  
+  // Prevent hydration mismatch by initializing time-sensitive data in useEffect
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
+  const [today, setToday] = useState<string>("");
+
+  useEffect(() => {
+    setCurrentTime(new Date());
+    setToday(format(new Date(), "yyyy-MM-dd"));
+    
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   const [project, setProject] = useState("");
   const [notes, setNotes] = useState("");
 
   const attendanceQuery = useMemoFirebase(() => {
-    // Safety guard: Must have fully synced user profile to match security rules
     if (!authUser || !user || user.id !== authUser.uid || !user.role || !user.department) return null;
     
     let q = query(collection(db, "attendance"));
     
-    // STRICT filtering to match security rules. 
     if (user.role === 'Employee') {
       q = query(q, where("userId", "==", authUser.uid));
     } else if (['Team Lead', 'Manager'].includes(user.role)) {
@@ -99,6 +110,8 @@ export function AttendanceTab() {
     });
   };
 
+  if (!currentTime) return null;
+
   return (
     <div className="space-y-6">
       <div className="grid gap-6 md:grid-cols-3">
@@ -113,10 +126,10 @@ export function AttendanceTab() {
           <CardContent className="space-y-4">
             <div className="text-center py-4">
               <h2 className="text-3xl font-black text-primary font-mono tracking-tighter">
-                {format(new Date(), "HH:mm")}
+                {format(currentTime, "HH:mm")}
               </h2>
               <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-1">
-                {format(new Date(), "EEEE, MMMM do")}
+                {format(currentTime, "EEEE, MMMM do")}
               </p>
             </div>
             

@@ -1,7 +1,7 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { useAuthStore } from "@/lib/auth-store";
@@ -13,14 +13,24 @@ import { LoginForm } from "@/components/auth/LoginForm";
 import { Button } from "@/components/ui/button";
 import { signOut } from "firebase/auth";
 
-import { OverviewTab } from "@/components/dashboard/OverviewTab";
-import { ProjectManagement } from "@/components/dashboard/ProjectManagement";
-import { TaskManagement } from "@/components/dashboard/TaskManagement";
-import { WorkLogTerminal } from "@/components/dashboard/WorkLogTerminal";
-import { UserManagement } from "@/components/dashboard/UserManagement";
-import { ReportsTab } from "@/components/dashboard/ReportsTab";
-import { AttendanceTab } from "@/components/dashboard/AttendanceTab";
-import { LeaveManagement } from "@/components/dashboard/LeaveManagement";
+// Lazy load dashboard tabs for performance
+const OverviewTab = dynamic(() => import("@/components/dashboard/OverviewTab").then(mod => mod.OverviewTab), { loading: () => <TabLoader /> });
+const ProjectManagement = dynamic(() => import("@/components/dashboard/ProjectManagement").then(mod => mod.ProjectManagement), { loading: () => <TabLoader /> });
+const TaskManagement = dynamic(() => import("@/components/dashboard/TaskManagement").then(mod => mod.TaskManagement), { loading: () => <TabLoader /> });
+const WorkLogTerminal = dynamic(() => import("@/components/dashboard/WorkLogTerminal").then(mod => mod.WorkLogTerminal), { loading: () => <TabLoader /> });
+const UserManagement = dynamic(() => import("@/components/dashboard/UserManagement").then(mod => mod.UserManagement), { loading: () => <TabLoader /> });
+const ReportsTab = dynamic(() => import("@/components/dashboard/ReportsTab").then(mod => mod.ReportsTab), { loading: () => <TabLoader /> });
+const AttendanceTab = dynamic(() => import("@/components/dashboard/AttendanceTab").then(mod => mod.AttendanceTab), { loading: () => <TabLoader /> });
+const LeaveManagement = dynamic(() => import("@/components/dashboard/LeaveManagement").then(mod => mod.LeaveManagement), { loading: () => <TabLoader /> });
+
+function TabLoader() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3 opacity-50">
+      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <p className="text-[10px] font-bold uppercase tracking-widest">Loading Module...</p>
+    </div>
+  );
+}
 
 function DashboardContent() {
   const { user: authUser, isUserLoading } = useUser();
