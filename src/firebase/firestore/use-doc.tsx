@@ -55,26 +55,29 @@ export function useDoc<T = any>(
       return;
     }
 
+    const path = memoizedDocRef.path;
+    console.log(`[useDoc] Subscribing to: ${path}`);
     setIsLoading(true);
     setError(null);
-    // Optional: setData(null); // Clear previous data instantly
 
     const unsubscribe = onSnapshot(
       memoizedDocRef,
       (snapshot: DocumentSnapshot<DocumentData>) => {
         if (snapshot.exists()) {
+          console.log(`[useDoc] Document found at ${path}`);
           setData({ ...(snapshot.data() as T), id: snapshot.id });
         } else {
-          // Document does not exist
+          console.warn(`[useDoc] Document does not exist at ${path}`);
           setData(null);
         }
-        setError(null); // Clear any previous error on successful snapshot (even if doc doesn't exist)
+        setError(null);
         setIsLoading(false);
       },
       (error: FirestoreError) => {
+        console.error(`[useDoc] Permission Denied for path: ${path}`, error);
         const contextualError = new FirestorePermissionError({
           operation: 'get',
-          path: memoizedDocRef.path,
+          path: path,
         })
 
         setError(contextualError)
@@ -86,7 +89,10 @@ export function useDoc<T = any>(
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      console.log(`[useDoc] Unsubscribing from: ${path}`);
+      unsubscribe();
+    };
   }, [memoizedDocRef]); // Re-run if the memoizedDocRef changes.
 
   return { data, isLoading, error };

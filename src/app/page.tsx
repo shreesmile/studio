@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -37,6 +36,7 @@ function DashboardContent() {
     if (isUserLoading) return;
 
     if (!authUser) {
+      console.log("[Auth] No authenticated user found. Clearing profile.");
       clearProfile();
       syncRef.current = null;
       setIsInitializing(false);
@@ -46,6 +46,7 @@ function DashboardContent() {
 
     // Only subscribe if the user ID has changed or profile is missing/stale
     if (authUser && (syncRef.current !== authUser.uid || !profile || profile.id !== authUser.uid)) {
+      console.log(`[ProfileSync] Initializing profile sync for UID: ${authUser.uid}`);
       syncRef.current = authUser.uid;
       setIsInitializing(true);
       setProfileMissing(false);
@@ -53,16 +54,16 @@ function DashboardContent() {
       const unsub = onSnapshot(doc(db, "users", authUser.uid), (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
+          console.log(`[ProfileSync] Profile found for ${data.name} (${data.role})`);
           setProfile(data as any);
           setProfileMissing(false);
         } else {
-          // USER EXISTS IN AUTH BUT NO PROFILE IN FIRESTORE
-          // This causes permission errors for other queries
+          console.warn(`[ProfileSync] Security Marker Missing for UID: ${authUser.uid}. No Firestore document found in /users.`);
           setProfileMissing(true);
         }
         setIsInitializing(false);
       }, (err) => {
-        console.error("Profile synchronization failure:", err);
+        console.error("[ProfileSync] Synchronization failure:", err);
         setProfileMissing(true);
         setIsInitializing(false);
       });
@@ -73,10 +74,12 @@ function DashboardContent() {
   }, [authUser, isUserLoading, db, setProfile, clearProfile, profile]);
 
   const handleTabChange = useCallback((id: string) => {
+    console.log(`[Navigation] Switching to tab: ${id}`);
     setActiveTab(id);
   }, []);
 
   const handleLogout = async () => {
+    console.log("[Auth] Initiating logout sequence.");
     await signOut(auth);
     clearProfile();
     window.location.reload();

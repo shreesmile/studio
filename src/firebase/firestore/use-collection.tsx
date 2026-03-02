@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -70,6 +69,12 @@ export function useCollection<T = any>(
       return;
     }
 
+    const path: string =
+      memoizedTargetRefOrQuery.type === 'collection'
+        ? (memoizedTargetRefOrQuery as CollectionReference).path
+        : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
+
+    console.log(`[useCollection] Subscribing to: ${path}`);
     setIsLoading(true);
     setError(null);
 
@@ -81,17 +86,14 @@ export function useCollection<T = any>(
         for (const doc of snapshot.docs) {
           results.push({ ...(doc.data() as T), id: doc.id });
         }
+        console.log(`[useCollection] Received ${results.length} documents from ${path}`);
         setData(results);
         setError(null);
         setIsLoading(false);
       },
       (error: FirestoreError) => {
-        // This logic extracts the path from either a ref or a query
-        const path: string =
-          memoizedTargetRefOrQuery.type === 'collection'
-            ? (memoizedTargetRefOrQuery as CollectionReference).path
-            : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString()
-
+        console.error(`[useCollection] Permission Denied for path: ${path}`, error);
+        
         const contextualError = new FirestorePermissionError({
           operation: 'list',
           path,
@@ -106,7 +108,10 @@ export function useCollection<T = any>(
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      console.log(`[useCollection] Unsubscribing from: ${path}`);
+      unsubscribe();
+    };
   }, [memoizedTargetRefOrQuery]); // Re-run if the target query/reference changes.
   if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
     throw new Error(String(memoizedTargetRefOrQuery) + ' was not properly memoized using useMemoFirebase');

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from "react";
@@ -35,11 +34,14 @@ export function LoginForm() {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    console.log(`[AuthAction] Attempting ${isSignUp ? 'Sign Up' : 'Login'} for ${email}`);
+    
     try {
       let user;
       if (isSignUp) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
+        console.log(`[AuthAction] Firebase User created: ${user.uid}`);
         
         const profileData = {
           id: user.uid,
@@ -53,8 +55,10 @@ export function LoginForm() {
           updatedAt: new Date().toISOString()
         };
 
+        console.log(`[AuthAction] Creating Firestore profile at /users/${user.uid}`);
         // CRITICAL: Block until profile is created to satisfy security rules for first sync
         await setDoc(doc(db, "users", user.uid), profileData);
+        console.log("[AuthAction] Firestore profile created successfully.");
 
         // Update local store
         setProfile(profileData as any);
@@ -66,17 +70,21 @@ export function LoginForm() {
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
+        console.log(`[AuthAction] Login successful for UID: ${user.uid}`);
       }
 
       // Sync with Next.js Middleware via session API
+      console.log("[AuthAction] Syncing session with middleware...");
       const idToken = await getIdToken(user);
       await fetch('/api/auth/session', {
         method: 'POST',
         body: JSON.stringify({ idToken }),
         headers: { 'Content-Type': 'application/json' }
       });
+      console.log("[AuthAction] Session sync complete.");
 
     } catch (error: any) {
+      console.error("[AuthAction] Authentication failed:", error);
       toast({
         variant: "destructive",
         title: "Authentication error",
@@ -88,6 +96,7 @@ export function LoginForm() {
   };
 
   const handleDemoLogin = async () => {
+    console.log("[AuthAction] Using demo credentials.");
     setEmail("admin@roleflow.io");
     setPassword("password123");
     setIsSignUp(false);
