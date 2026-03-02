@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -7,6 +8,13 @@ const nextConfig: NextConfig = {
   },
   eslint: {
     ignoreDuringBuilds: true,
+  },
+  // Suppress cross-origin warnings in dev environment
+  experimental: {
+    allowedDevOrigins: [
+      '6000-firebase-studio-1772357960751.cluster-fdkw7vjj7bgguspe3fbbc25tra.cloudworkstations.dev',
+      'localhost:9002'
+    ],
   },
   images: {
     remotePatterns: [

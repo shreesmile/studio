@@ -10,9 +10,8 @@ import {
   BrainCircuit, 
   Loader2, 
   Briefcase, 
-  Clock, 
-  CheckCircle2, 
-  BarChart3 
+  BarChart3,
+  CheckCircle2
 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";

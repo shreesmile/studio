@@ -51,6 +51,7 @@ export function ProjectManagement() {
       return query(q, where("assignedTo", "array-contains", authUser.uid));
     }
     
+    // For Managers and Team Leads
     return query(q, where("department", "==", user.department || "Default"), orderBy("createdAt", "desc"));
   }, [db, user, authUser]);
 
